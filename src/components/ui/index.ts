@@ -5,6 +5,7 @@ export { EmptyState, ErrorState, LoadingState } from '@/components/ui/empty-stat
 export { FormHeader } from '@/components/ui/form-header';
 export { Input, type InputProps, SelectField } from '@/components/ui/input';
 export { Avatar, ListRow, RowDivider } from '@/components/ui/list-row';
+export { PickerSheet, type PickerOption } from '@/components/ui/picker-sheet';
 export { PageHeader, Screen, ScrollScreen, SectionHeader } from '@/components/ui/screen';
 export { Segmented } from '@/components/ui/segmented';
 export { StatCard } from '@/components/ui/stat-card';

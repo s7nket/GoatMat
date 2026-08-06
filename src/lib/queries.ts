@@ -78,6 +78,93 @@ export function useStock() {
   });
 }
 
+/** A bill row as the list screens need it: totals plus the party's name. */
+export type BillListRow = {
+  id: string;
+  bill_no: number;
+  bill_date: string;
+  total_amount: number;
+  paid_amount: number;
+  payment_mode: string | null;
+  voided_at: string | null;
+  party: { name: string; phone: string | null } | null;
+};
+
+export type BillLine = {
+  id: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  product: { id: string; name: string; size: string | null; gsm: number | null } | null;
+};
+
+export type BillDetail = BillListRow & {
+  notes: string | null;
+  supplier_ref?: string | null;
+  voided_reason: string | null;
+  items: BillLine[];
+};
+
+const LIST_COLUMNS =
+  'id, bill_no, bill_date, total_amount, paid_amount, payment_mode, voided_at, party:parties(name, phone)';
+
+export function useSales() {
+  return useQuery({
+    queryKey: keys.sales,
+    queryFn: async (): Promise<BillListRow[]> => {
+      const { data, error } = await supabase
+        .from('sales')
+        .select(LIST_COLUMNS)
+        .is('voided_at', null)
+        .order('bill_date', { ascending: false })
+        .order('bill_no', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as unknown as BillListRow[];
+    },
+  });
+}
+
+export function usePurchases() {
+  return useQuery({
+    queryKey: keys.purchases,
+    queryFn: async (): Promise<BillListRow[]> => {
+      const { data, error } = await supabase
+        .from('purchases')
+        .select(LIST_COLUMNS)
+        .is('voided_at', null)
+        .order('bill_date', { ascending: false })
+        .order('bill_no', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []) as unknown as BillListRow[];
+    },
+  });
+}
+
+export function useBill(kind: 'sale' | 'purchase', id: string | undefined) {
+  const table = kind === 'sale' ? 'sales' : 'purchases';
+  const itemTable = kind === 'sale' ? 'sale_items' : 'purchase_items';
+  const extra = kind === 'purchase' ? ', supplier_ref' : '';
+
+  return useQuery({
+    queryKey: [table, id],
+    enabled: !!id && id !== 'new',
+    queryFn: async (): Promise<BillDetail | null> => {
+      const { data, error } = await supabase
+        .from(table)
+        .select(
+          `${LIST_COLUMNS}, notes, voided_reason${extra}, ` +
+            `items:${itemTable}(id, qty, rate, amount, product:products(id, name, size, gsm))`,
+        )
+        .eq('id', id!)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as unknown as BillDetail | null;
+    },
+  });
+}
+
 export function useProducts() {
   return useQuery({
     queryKey: keys.products,

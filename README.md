@@ -14,8 +14,8 @@ handed out directly.
 |---|---|---|
 | 0 | Project setup, design system, database schema, auth, tab shell | **done** |
 | 1 | Products, suppliers, customers CRUD | **done** |
-| 2 | Purchase + sale entry, live stock | next |
-| 3 | PDF kaccha bill, WhatsApp share | |
+| 2 | Purchase + sale entry, live stock | **done** |
+| 3 | PDF kaccha bill, WhatsApp share | next |
 | 4 | Offline outbox + sync | |
 | 5 | Date-range reports | |
 | 6 | Payments / udhaar ledger | |
@@ -33,8 +33,9 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
 
 1. Create a project at [supabase.com](https://supabase.com) — region **Mumbai (ap-south-1)**.
 2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql), run it.
-   *Already ran an earlier copy?* Run
-   [`supabase/002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql) too.
+   *Already ran an earlier copy?* Run the numbered migrations you have not applied
+   yet — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
+   then [`003_bill_entry.sql`](supabase/003_bill_entry.sql). All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.
 4. **Authentication → Users → Add user** for each person. Confirm the email.
@@ -116,6 +117,16 @@ The change takes effect on their next request — no need to touch their phone.
   line items on every insert, update and delete.
 - **Bills are append-only.** To fix one, void it (`voided_at`) and enter a new
   one. Voided bills stay for the audit trail and drop out of every view.
+- **Bills are written in one transaction.** `create_sale` / `create_purchase`
+  insert the header and its lines together, so a dropped connection can never
+  leave a zero-total orphan bill behind.
+
+## Opening stock
+
+Stock you already own before using the app is entered as a purchase, not typed
+in. Add a supplier called `Opening Stock`, record one purchase dated today with
+your real counts, and use whatever you actually paid as the rate (0 if unknown).
+Stock is then correct from day one and the books still balance.
 - **No raw values in screens.** Colours, spacing and type come from
   `src/theme/tokens.ts`; money and dates go through `src/lib/format.ts`.
 

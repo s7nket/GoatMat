@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import type { Party, PartyKind, Product } from '@/lib/database.types';
+import type { BillItemInput, Party, PartyKind, PaymentMode, Product } from '@/lib/database.types';
 import { keys } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 
@@ -18,8 +18,82 @@ function useInvalidateAll() {
       client.invalidateQueries({ queryKey: ['parties'] }),
       client.invalidateQueries({ queryKey: keys.stock }),
       client.invalidateQueries({ queryKey: keys.balances }),
+      client.invalidateQueries({ queryKey: keys.sales }),
+      client.invalidateQueries({ queryKey: keys.purchases }),
       client.invalidateQueries({ queryKey: ['dashboard'] }),
     ]);
+}
+
+export type BillInput = {
+  partyId: string;
+  billDate: string;
+  paymentMode: PaymentMode | null;
+  paidAmount: number;
+  notes: string | null;
+  /** Purchases only: the supplier's own bill number. */
+  supplierRef?: string | null;
+  items: BillItemInput[];
+};
+
+/**
+ * Bills are written through a Postgres function so the header and its lines
+ * land in one transaction. Two round trips would leave a zero-total orphan
+ * bill behind any time the phone dropped signal between them.
+ */
+export function useCreateBill(kind: 'sale' | 'purchase') {
+  const invalidate = useInvalidateAll();
+
+  return useMutation({
+    mutationFn: async (input: BillInput): Promise<string> => {
+      const items = input.items.map((item) => ({
+        product_id: item.product_id,
+        qty: item.qty,
+        rate: item.rate,
+      }));
+
+      if (kind === 'sale') {
+        const { data, error } = await supabase.rpc('create_sale', {
+          p_customer_id: input.partyId,
+          p_bill_date: input.billDate,
+          p_payment_mode: input.paymentMode,
+          p_paid_amount: input.paidAmount,
+          p_notes: input.notes,
+          p_items: items,
+        });
+        if (error) throw error;
+        return data;
+      }
+
+      const { data, error } = await supabase.rpc('create_purchase', {
+        p_supplier_id: input.partyId,
+        p_bill_date: input.billDate,
+        p_supplier_ref: input.supplierRef ?? null,
+        p_payment_mode: input.paymentMode,
+        p_paid_amount: input.paidAmount,
+        p_notes: input.notes,
+        p_items: items,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/** Bills are never edited or deleted -- void and re-enter, so history survives. */
+export function useVoidBill(kind: 'sale' | 'purchase') {
+  const invalidate = useInvalidateAll();
+
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string | null }) => {
+      const { error } = await supabase.rpc(kind === 'sale' ? 'void_sale' : 'void_purchase', {
+        p_id: id,
+        p_reason: reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
 }
 
 export type ProductInput = {

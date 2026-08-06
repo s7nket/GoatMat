@@ -106,6 +106,13 @@ export type Expense = Audit & {
   voided_at: string | null;
 };
 
+/** One line on a bill, as sent to create_sale / create_purchase. */
+export type BillItemInput = {
+  product_id: string;
+  qty: number;
+  rate: number;
+};
+
 export type Member = {
   user_id: string;
   full_name: string;
@@ -179,6 +186,31 @@ export type Database = {
     };
     Functions: {
       is_member: { Args: Record<string, never>; Returns: boolean };
+      create_sale: {
+        Args: {
+          p_customer_id: string;
+          p_bill_date: string;
+          p_payment_mode: PaymentMode | null;
+          p_paid_amount: number;
+          p_notes: string | null;
+          p_items: BillItemInput[];
+        };
+        Returns: string;
+      };
+      create_purchase: {
+        Args: {
+          p_supplier_id: string;
+          p_bill_date: string;
+          p_supplier_ref: string | null;
+          p_payment_mode: PaymentMode | null;
+          p_paid_amount: number;
+          p_notes: string | null;
+          p_items: BillItemInput[];
+        };
+        Returns: string;
+      };
+      void_sale: { Args: { p_id: string; p_reason: string | null }; Returns: undefined };
+      void_purchase: { Args: { p_id: string; p_reason: string | null }; Returns: undefined };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

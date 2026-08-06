@@ -54,13 +54,13 @@ export default function HomeScreen() {
           label="New sale"
           icon="trending-up"
           tone="primary"
-          onPress={() => router.push('/sales')}
+          onPress={() => router.push({ pathname: '/sales/[id]', params: { id: 'new' } })}
         />
         <QuickAction
           label="New purchase"
           icon="shopping-bag"
           tone="neutral"
-          onPress={() => router.push('/purchases')}
+          onPress={() => router.push({ pathname: '/purchases/[id]', params: { id: 'new' } })}
         />
       </View>
 
