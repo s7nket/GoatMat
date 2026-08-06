@@ -24,6 +24,28 @@ function useInvalidateAll() {
     ]);
 }
 
+export type BusinessProfileInput = {
+  business_name: string;
+  owner_name: string | null;
+  phone: string | null;
+  address: string | null;
+  bill_footer: string | null;
+};
+
+export function useSaveBusinessProfile() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: BusinessProfileInput) => {
+      // The row is seeded by the migration, so this is always an update of the
+      // single id = true row.
+      const { error } = await supabase.from('business_profile').update(input).eq('id', true);
+      if (error) throw error;
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: keys.business }),
+  });
+}
+
 export type BillInput = {
   partyId: string;
   billDate: string;

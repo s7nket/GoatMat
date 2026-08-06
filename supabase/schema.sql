@@ -218,6 +218,22 @@ create table if not exists payments (
 
 create index if not exists payments_party_idx on payments (party_id) where voided_at is null;
 
+-- A bill handed to a customer has to say who issued it. Edited in the app under
+-- Settings, so changing a phone number does not need a new APK.
+create table if not exists business_profile (
+  -- Single-row table: the primary key can only ever hold true, so a second
+  -- insert collides instead of quietly creating a rival profile.
+  id            boolean primary key default true check (id),
+  business_name text not null default 'GoatMat',
+  owner_name    text,
+  phone         text,
+  address       text,
+  bill_footer   text,
+  updated_at    timestamptz not null default now()
+);
+
+insert into business_profile (id) values (true) on conflict (id) do nothing;
+
 create table if not exists expenses (
   id         uuid primary key default gen_random_uuid(),
   spend_date date not null default current_date,
@@ -280,7 +296,9 @@ for each row execute function recalc_sale_total();
 do $$
 declare t text;
 begin
-  foreach t in array array['products','parties','purchases','sales','payments','expenses'] loop
+  foreach t in array array[
+    'products','parties','purchases','sales','payments','expenses','business_profile'
+  ] loop
     execute format('drop trigger if exists %I_touch on %I', t, t);
     execute format(
       'create trigger %I_touch before update on %I for each row execute function touch_updated_at()', t, t);
@@ -352,7 +370,8 @@ where pt.archived = false;
 --    The anon key shipped inside the APK is public by design -- these policies,
 --    not key secrecy, are what protect the data. Nothing is readable logged out.
 -- ---------------------------------------------------------------------------
-alter table members        enable row level security;
+alter table members          enable row level security;
+alter table business_profile enable row level security;
 alter table products       enable row level security;
 alter table parties        enable row level security;
 alter table purchases      enable row level security;
@@ -371,7 +390,8 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'products','parties','purchases','purchase_items','sales','sale_items','payments','expenses'
+    'products','parties','purchases','purchase_items','sales','sale_items','payments','expenses',
+    'business_profile'
   ] loop
     execute format('drop policy if exists %I_member_all on %I', t, t);
     execute format(

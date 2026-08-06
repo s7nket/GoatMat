@@ -106,6 +106,16 @@ export type Expense = Audit & {
   voided_at: string | null;
 };
 
+export type BusinessProfile = {
+  id: boolean;
+  business_name: string;
+  owner_name: string | null;
+  phone: string | null;
+  address: string | null;
+  bill_footer: string | null;
+  updated_at: string;
+};
+
 /** One line on a bill, as sent to create_sale / create_purchase. */
 export type BillItemInput = {
   product_id: string;
@@ -165,6 +175,7 @@ export type Database = {
   public: {
     Tables: {
       members: Table<Member, 'created_at'>;
+      business_profile: Table<BusinessProfile, 'id' | 'business_name' | 'updated_at'>;
       products: Table<Product, Generated | 'id' | 'archived' | 'low_stock_at' | 'created_by'>;
       parties: Table<Party, Generated | 'id' | 'archived' | 'created_by'>;
       purchases: Table<

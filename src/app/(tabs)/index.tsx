@@ -24,7 +24,7 @@ import { colors, radius, shadow, spacing } from '@/theme/tokens';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { member, signOut } = useAuth();
+  const { member } = useAuth();
   const { data, isPending, isError, error, refetch, isRefetching } = useDashboard();
 
   const firstName = member?.full_name?.split(' ')[0] ?? 'there';
@@ -40,11 +40,11 @@ export default function HomeScreen() {
         right={
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Sign out"
+            accessibilityLabel="Settings"
             hitSlop={10}
-            onPress={signOut}
-            style={styles.signOut}>
-            <Feather name="log-out" size={18} color={colors.textSecondary} />
+            onPress={() => router.push('/settings')}
+            style={styles.settings}>
+            <Feather name="settings" size={18} color={colors.textSecondary} />
           </Pressable>
         }
       />
@@ -180,7 +180,7 @@ function QuickAction({
 }
 
 const styles = StyleSheet.create({
-  signOut: {
+  settings: {
     width: 40,
     height: 40,
     borderRadius: radius.full,

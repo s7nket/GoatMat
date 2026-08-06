@@ -18,7 +18,7 @@ import { money, pieces } from '@/lib/format';
 import { useStock } from '@/lib/queries';
 import { spacing } from '@/theme/tokens';
 
-export default function ReportsScreen() {
+export default function StockScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, isPending, isError, error, refetch, isRefetching } = useStock();
@@ -28,10 +28,10 @@ export default function ReportsScreen() {
       contentContainerStyle={{ paddingTop: insets.top + spacing.sm }}
       onRefresh={refetch}
       refreshing={isRefetching}>
-      <PageHeader title="Reports" subtitle="Stock now; date-range reports in phase 5" />
+      <PageHeader title="Stock" subtitle="Bought minus sold, live" />
 
       <SectionHeader
-        title="Stock on hand"
+        title="On hand"
         action={
           <Button
             label="Products"

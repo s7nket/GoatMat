@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 
-import type { Party, PartyBalanceRow, PartyKind, Product, StockRow } from '@/lib/database.types';
+import type {
+  BusinessProfile,
+  Party,
+  PartyBalanceRow,
+  PartyKind,
+  Product,
+  StockRow,
+} from '@/lib/database.types';
 import { toISODate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
@@ -13,7 +20,21 @@ export const keys = {
   purchases: ['purchases'] as const,
   parties: (kind?: string) => ['parties', kind ?? 'all'] as const,
   products: ['products'] as const,
+  business: ['business-profile'] as const,
 };
+
+export function useBusinessProfile() {
+  return useQuery({
+    queryKey: keys.business,
+    // Printed on every bill and changed maybe twice a year.
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<BusinessProfile | null> => {
+      const { data, error } = await supabase.from('business_profile').select('*').maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
 
 export type DashboardSummary = {
   salesToday: number;
