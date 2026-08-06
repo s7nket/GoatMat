@@ -9,14 +9,23 @@ create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------------------
 -- 1. Membership -- the single gate every RLS policy leans on.
---    Only rows in this table can touch business data.
+--    Only rows in this table, with active = true, can touch business data.
+--
+--    Rows are created automatically by the trigger below whenever you add a
+--    user in Supabase Studio. Nothing is hand-inserted. To revoke access,
+--    flip `active` to false in the table editor -- the person keeps their
+--    login but every read and write starts failing immediately, and their
+--    history stays attached to their name.
 -- ---------------------------------------------------------------------------
 create table if not exists members (
   user_id     uuid primary key references auth.users (id) on delete cascade,
   full_name   text not null,
   role        text not null default 'staff' check (role in ('owner', 'staff')),
+  active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
+
+alter table members add column if not exists active boolean not null default true;
 
 create or replace function is_member()
 returns boolean
@@ -25,8 +34,59 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (select 1 from members where user_id = auth.uid());
+  select exists (
+    select 1 from members
+    where user_id = auth.uid() and active
+  );
 $$;
+
+-- Every new auth user gets a membership row. The first one is the owner.
+-- Name comes from the metadata you can set when inviting; otherwise it is
+-- derived from the email so the app always has something to greet them with.
+create or replace function handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  first_user boolean;
+  display    text;
+begin
+  select count(*) = 0 into first_user from members;
+
+  display := coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), ''),
+    initcap(replace(split_part(new.email, '@', 1), '.', ' ')),
+    'Member'
+  );
+
+  insert into members (user_id, full_name, role)
+  values (new.id, display, case when first_user then 'owner' else 'staff' end)
+  on conflict (user_id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function handle_new_auth_user();
+
+-- Backfill anyone who already existed before the trigger did.
+insert into members (user_id, full_name, role)
+select
+  u.id,
+  coalesce(
+    nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''),
+    initcap(replace(split_part(u.email, '@', 1), '.', ' ')),
+    'Member'
+  ),
+  case when row_number() over (order by u.created_at) = 1 then 'owner' else 'staff' end
+from auth.users u
+on conflict (user_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 2. updated_at trigger
@@ -318,4 +378,126 @@ begin
       'create policy %I_member_all on %I for all using (is_member()) with check (is_member())', t, t);
   end loop;
 end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 9. Bill entry.
+--    A bill and its line items must appear together or not at all. Inserting
+--    the bill and then the items in a second round trip leaves a zero-total
+--    orphan on the books whenever the phone loses signal in between.
+--
+--    Deliberately not security definer: these run as the caller, so the RLS
+--    policies above still apply.
+-- ---------------------------------------------------------------------------
+create or replace function create_sale(
+  p_customer_id  uuid,
+  p_bill_date    date,
+  p_payment_mode text,
+  p_paid_amount  numeric,
+  p_notes        text,
+  p_items        jsonb
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  new_id uuid;
+begin
+  if jsonb_array_length(coalesce(p_items, '[]'::jsonb)) = 0 then
+    raise exception 'A bill needs at least one item';
+  end if;
+
+  insert into sales (customer_id, bill_date, payment_mode, paid_amount, notes, created_by)
+  values (
+    p_customer_id,
+    coalesce(p_bill_date, current_date),
+    p_payment_mode,
+    coalesce(p_paid_amount, 0),
+    nullif(trim(coalesce(p_notes, '')), ''),
+    auth.uid()
+  )
+  returning id into new_id;
+
+  -- total_amount is set by the line-item trigger, not by the caller.
+  insert into sale_items (sale_id, product_id, qty, rate)
+  select
+    new_id,
+    (item ->> 'product_id')::uuid,
+    (item ->> 'qty')::integer,
+    (item ->> 'rate')::numeric
+  from jsonb_array_elements(p_items) as item;
+
+  return new_id;
+end;
+$$;
+
+create or replace function create_purchase(
+  p_supplier_id  uuid,
+  p_bill_date    date,
+  p_supplier_ref text,
+  p_payment_mode text,
+  p_paid_amount  numeric,
+  p_notes        text,
+  p_items        jsonb
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  new_id uuid;
+begin
+  if jsonb_array_length(coalesce(p_items, '[]'::jsonb)) = 0 then
+    raise exception 'A bill needs at least one item';
+  end if;
+
+  insert into purchases (
+    supplier_id, bill_date, supplier_ref, payment_mode, paid_amount, notes, created_by
+  )
+  values (
+    p_supplier_id,
+    coalesce(p_bill_date, current_date),
+    nullif(trim(coalesce(p_supplier_ref, '')), ''),
+    p_payment_mode,
+    coalesce(p_paid_amount, 0),
+    nullif(trim(coalesce(p_notes, '')), ''),
+    auth.uid()
+  )
+  returning id into new_id;
+
+  insert into purchase_items (purchase_id, product_id, qty, rate)
+  select
+    new_id,
+    (item ->> 'product_id')::uuid,
+    (item ->> 'qty')::integer,
+    (item ->> 'rate')::numeric
+  from jsonb_array_elements(p_items) as item;
+
+  return new_id;
+end;
+$$;
+
+-- Voiding is the only way to undo a bill. The row stays for the audit trail,
+-- drops out of every view and report, and releases the stock it moved.
+create or replace function void_sale(p_id uuid, p_reason text)
+returns void
+language sql
+set search_path = public
+as $$
+  update sales
+     set voided_at = now(),
+         voided_reason = nullif(trim(coalesce(p_reason, '')), '')
+   where id = p_id and voided_at is null;
+$$;
+
+create or replace function void_purchase(p_id uuid, p_reason text)
+returns void
+language sql
+set search_path = public
+as $$
+  update purchases
+     set voided_at = now(),
+         voided_reason = nullif(trim(coalesce(p_reason, '')), '')
+   where id = p_id and voided_at is null;
 $$;
