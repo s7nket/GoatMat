@@ -30,7 +30,8 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files -- Supabase URL/anon key live here, never committed
+.env
 .env*.local
 
 # typescript

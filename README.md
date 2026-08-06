@@ -1,56 +1,108 @@
-# Welcome to your Expo app 👋
+# GoatMat
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Private Android app for running the goat-mat trading business: purchases, sales,
+stock, party balances and reports. Not published to any store — the APK is
+handed out directly.
 
-## Get started
+- **App:** Expo SDK 57 / React Native 0.86 / expo-router / TypeScript
+- **Data:** Supabase (hosted Postgres) with Row Level Security
+- **Distribution:** EAS Build → `.apk` → GitHub Releases → sideload
 
-1. Install dependencies
+## Status
 
-   ```bash
-   npm install
+| Phase | Scope | State |
+|---|---|---|
+| 0 | Project setup, design system, database schema, auth, tab shell | **done** |
+| 1 | Products, suppliers, customers CRUD | next |
+| 2 | Purchase + sale entry, live stock | |
+| 3 | PDF kaccha bill, WhatsApp share | |
+| 4 | Offline outbox + sync | |
+| 5 | Date-range reports | |
+| 6 | Payments / udhaar ledger | |
+| 7 | EAS build + GitHub Release | |
+
+## First-time setup
+
+### 1. Node
+
+React Native 0.86 requires Node `^20.19.4 || ^22.13.0 || ^24.3.0`. Anything
+older prints `EBADENGINE` warnings on install and can fail at bundle time.
+Check with `node --version` and upgrade from https://nodejs.org if needed.
+
+### 2. Supabase project
+
+1. Create a project at [supabase.com](https://supabase.com) — region **Mumbai (ap-south-1)**.
+2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql), run it.
+3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
+   This app has no sign-up screen; accounts are created by hand.
+4. **Authentication → Users → Add user** for each person. Confirm the email.
+5. Back in **SQL Editor**, put each user on the roster — nothing is readable
+   until this row exists:
+
+   ```sql
+   insert into members (user_id, full_name, role)
+   values ('<paste-the-user-uuid>', 'Your Name', 'owner');
    ```
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### 3. Local env
 
 ```bash
-npm run reset-project
+cp .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from
+**Project Settings → Data API**. `.env` is gitignored.
 
-### Other setup steps
+The anon key is public by design — it ships inside the APK and anyone can read
+it out. RLS is what protects the data. **Never** put the `service_role` key in
+this project.
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+### 4. Run it
 
-## Learn more
+```bash
+npm install
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Install **Expo Go** on an Android phone, scan the QR code. Edits reload live.
 
-## Join the community
+> Changed `.env`? Restart with `npx expo start -c` — env values are inlined
+> into the bundle and the cache holds the old ones.
 
-Join our community of developers creating universal apps.
+## Layout
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```
+src/
+  app/                  expo-router routes (file path = URL)
+    _layout.tsx         providers, font loading, auth gate
+    sign-in.tsx
+    (tabs)/             Home, Sales, Purchases, Parties, Reports
+  components/ui/        the whole component kit
+  lib/
+    supabase.ts         client
+    auth.tsx            session + membership context
+    queries.ts          react-query hooks
+    format.ts           money, dates, pieces
+    database.types.ts   mirrors supabase/schema.sql
+  theme/tokens.ts       every colour, size, shadow in the app
+supabase/schema.sql     run this in Supabase Studio
+```
+
+## Rules that keep the data honest
+
+- **Stock is never stored.** `stock_view` computes bought − sold. It cannot drift.
+- **Bill totals are never typed.** A trigger recalculates `total_amount` from the
+  line items on every insert, update and delete.
+- **Bills are append-only.** To fix one, void it (`voided_at`) and enter a new
+  one. Voided bills stay for the audit trail and drop out of every view.
+- **No raw values in screens.** Colours, spacing and type come from
+  `src/theme/tokens.ts`; money and dates go through `src/lib/format.ts`.
+
+## Checks
+
+```bash
+npx tsc --noEmit
+```
