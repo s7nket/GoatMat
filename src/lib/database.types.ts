@@ -143,10 +143,14 @@ export type PartyBalanceRow = {
 /** Columns the database fills in itself, so callers never supply them. */
 type Generated = 'created_at' | 'updated_at';
 
-type Table<Row, InsertOptional extends keyof Row, UpdateNever extends keyof Row = never> = {
+/** Nullable columns are optional on insert -- omitting one means SQL NULL. */
+type NullableKeys<T> = { [K in keyof T]-?: null extends T[K] ? K : never }[keyof T];
+
+type Table<Row, InsertOptional extends keyof Row> = {
   Row: Row;
-  Insert: Omit<Row, InsertOptional | UpdateNever> & Partial<Pick<Row, InsertOptional>>;
-  Update: Partial<Omit<Row, UpdateNever>>;
+  Insert: Omit<Row, InsertOptional | NullableKeys<Row>> &
+    Partial<Pick<Row, (InsertOptional & keyof Row) | NullableKeys<Row>>>;
+  Update: Partial<Row>;
   Relationships: [];
 };
 

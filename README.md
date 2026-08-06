@@ -13,8 +13,8 @@ handed out directly.
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Project setup, design system, database schema, auth, tab shell | **done** |
-| 1 | Products, suppliers, customers CRUD | next |
-| 2 | Purchase + sale entry, live stock | |
+| 1 | Products, suppliers, customers CRUD | **done** |
+| 2 | Purchase + sale entry, live stock | next |
 | 3 | PDF kaccha bill, WhatsApp share | |
 | 4 | Offline outbox + sync | |
 | 5 | Date-range reports | |

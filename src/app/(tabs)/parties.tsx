@@ -1,9 +1,11 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
+  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -12,29 +14,42 @@ import {
   PageHeader,
   RowDivider,
   ScrollScreen,
-  Text,
+  Segmented,
 } from '@/components/ui';
+import type { PartyKind } from '@/lib/database.types';
 import { money } from '@/lib/format';
 import { usePartyBalances } from '@/lib/queries';
-import { colors, radius, spacing } from '@/theme/tokens';
-
-type Filter = 'customer' | 'supplier';
+import { spacing } from '@/theme/tokens';
 
 export default function PartiesScreen() {
   const insets = useSafeAreaInsets();
-  const [filter, setFilter] = useState<Filter>('customer');
-  const { data, isPending, isError, error, refetch, isRefetching } = usePartyBalances(filter);
+  const router = useRouter();
+  const [kind, setKind] = useState<PartyKind>('customer');
+  const { data, isPending, isError, error, refetch, isRefetching } = usePartyBalances(kind);
+
+  const noun = kind === 'customer' ? 'customer' : 'supplier';
 
   return (
     <ScrollScreen
       contentContainerStyle={{ paddingTop: insets.top + spacing.sm }}
       onRefresh={refetch}
       refreshing={isRefetching}>
-      <PageHeader title="Parties" subtitle="Who owes what" />
+      <PageHeader
+        title="Parties"
+        subtitle="Who owes what"
+        right={
+          <Button
+            label="Add"
+            size="sm"
+            icon="plus"
+            onPress={() => router.push({ pathname: '/parties/[id]', params: { id: 'new', kind } })}
+          />
+        }
+      />
 
       <Segmented
-        value={filter}
-        onChange={setFilter}
+        value={kind}
+        onChange={setKind}
         options={[
           { value: 'customer', label: 'Customers' },
           { value: 'supplier', label: 'Suppliers' },
@@ -51,8 +66,14 @@ export default function PartiesScreen() {
       ) : data.length === 0 ? (
         <EmptyState
           icon="users"
-          title={filter === 'customer' ? 'No customers yet' : 'No suppliers yet'}
-          message="Parties get added while entering a bill, or from here once the entry screens land."
+          title={kind === 'customer' ? 'No customers yet' : 'No suppliers yet'}
+          message={
+            kind === 'customer'
+              ? 'Add the people you sell mats to. Their pending udhaar shows up here.'
+              : 'Add the people you buy stock from. What you still owe them shows up here.'
+          }
+          actionLabel={`Add ${noun}`}
+          onAction={() => router.push({ pathname: '/parties/[id]', params: { id: 'new', kind } })}
         />
       ) : (
         <Card padded={false}>
@@ -68,7 +89,9 @@ export default function PartiesScreen() {
                   value={owed === 0 ? 'Settled' : money(Math.abs(owed))}
                   valueTone={owed === 0 ? 'muted' : owed > 0 ? 'success' : 'danger'}
                   valueCaption={owed === 0 ? undefined : owed > 0 ? 'to receive' : 'to pay'}
-                  chevron={false}
+                  onPress={() =>
+                    router.push({ pathname: '/parties/[id]', params: { id: party.id } })
+                  }
                 />
               </View>
             );
@@ -78,55 +101,3 @@ export default function PartiesScreen() {
     </ScrollScreen>
   );
 }
-
-/** Two-up pill switch. Kept local until a second screen needs it. */
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (next: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <View style={styles.segmented}>
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <Text
-            key={option.value}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            onPress={() => onChange(option.value)}
-            variant="label"
-            tone={active ? 'default' : 'secondary'}
-            center
-            style={[styles.segment, active && styles.segmentActive]}>
-            {option.label}
-          </Text>
-        );
-      })}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  segmented: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    padding: spacing.xs,
-    backgroundColor: colors.surfaceSunken,
-    borderRadius: radius.md,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-  },
-  segmentActive: {
-    backgroundColor: colors.surface,
-    color: colors.text,
-  },
-});

@@ -70,6 +70,9 @@ function RootNavigator() {
       }}>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="products/index" />
+        <Stack.Screen name="products/[id]" />
+        <Stack.Screen name="parties/[id]" />
       </Stack.Protected>
 
       <Stack.Protected guard={!session}>

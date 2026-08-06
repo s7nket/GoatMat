@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import type { PartyBalanceRow, StockRow } from '@/lib/database.types';
+import type { Party, PartyBalanceRow, PartyKind, Product, StockRow } from '@/lib/database.types';
 import { toISODate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 
@@ -74,6 +74,67 @@ export function useStock() {
       const { data, error } = await supabase.from('stock_view').select('*').order('name');
       if (error) throw error;
       return (data ?? []) as StockRow[];
+    },
+  });
+}
+
+export function useProducts() {
+  return useQuery({
+    queryKey: keys.products,
+    queryFn: async (): Promise<Product[]> => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('archived', false)
+        .order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useProduct(id: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.products, id],
+    // `new` is the create route, not a row -- nothing to fetch.
+    enabled: !!id && id !== 'new',
+    queryFn: async (): Promise<Product | null> => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useParties(kind?: PartyKind) {
+  return useQuery({
+    queryKey: keys.parties(kind),
+    queryFn: async (): Promise<Party[]> => {
+      let q = supabase.from('parties').select('*').eq('archived', false).order('name');
+      if (kind) q = q.eq('kind', kind);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useParty(id: string | undefined) {
+  return useQuery({
+    queryKey: [...keys.parties(), id],
+    enabled: !!id && id !== 'new',
+    queryFn: async (): Promise<Party | null> => {
+      const { data, error } = await supabase
+        .from('parties')
+        .select('*')
+        .eq('id', id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
     },
   });
 }

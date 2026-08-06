@@ -1,7 +1,9 @@
+import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -18,6 +20,7 @@ import { spacing } from '@/theme/tokens';
 
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { data, isPending, isError, error, refetch, isRefetching } = useStock();
 
   return (
@@ -27,7 +30,18 @@ export default function ReportsScreen() {
       refreshing={isRefetching}>
       <PageHeader title="Reports" subtitle="Stock now; date-range reports in phase 5" />
 
-      <SectionHeader title="Stock on hand" />
+      <SectionHeader
+        title="Stock on hand"
+        action={
+          <Button
+            label="Products"
+            size="sm"
+            variant="ghost"
+            iconRight="chevron-right"
+            onPress={() => router.push('/products')}
+          />
+        }
+      />
 
       {isPending ? (
         <LoadingState label="Counting stock" />
@@ -40,7 +54,9 @@ export default function ReportsScreen() {
         <EmptyState
           icon="package"
           title="No products yet"
-          message="Products get added in phase 1. Stock is then bought-minus-sold, computed live."
+          message="Add each mat type once. Stock is then bought minus sold, computed live — never typed in."
+          actionLabel="Add product"
+          onAction={() => router.push({ pathname: '/products/[id]', params: { id: 'new' } })}
         />
       ) : (
         <Card padded={false}>
@@ -59,10 +75,16 @@ export default function ReportsScreen() {
                   .join(' · ')}
                 value={pieces(item.qty_left)}
                 valueTone={
-                  item.qty_left <= 0 ? 'danger' : item.qty_left <= item.low_stock_at ? 'default' : 'success'
+                  item.qty_left <= 0
+                    ? 'danger'
+                    : item.qty_left <= item.low_stock_at
+                      ? 'default'
+                      : 'success'
                 }
                 valueCaption="in stock"
-                chevron={false}
+                onPress={() =>
+                  router.push({ pathname: '/products/[id]', params: { id: item.id } })
+                }
               />
             </View>
           ))}
