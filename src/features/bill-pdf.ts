@@ -20,6 +20,33 @@ function escapeHtml(value: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Hand-rolled rather than relying on `atob`, whose presence in Hermes has
+ * varied across React Native versions. A bill failing to send because a global
+ * went missing is not a debugging session worth having.
+ */
+function base64ToBytes(base64: string): Uint8Array {
+  const clean = base64.replace(/[^A-Za-z0-9+/]/g, '');
+  const bytes = new Uint8Array((clean.length * 3) >> 2);
+
+  let buffer = 0;
+  let bits = 0;
+  let out = 0;
+
+  for (let i = 0; i < clean.length; i++) {
+    buffer = (buffer << 6) | BASE64_ALPHABET.indexOf(clean[i]);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[out++] = (buffer >> bits) & 0xff;
+    }
+  }
+
+  return bytes.subarray(0, out);
+}
+
 function fileNameFor(kind: 'sale' | 'purchase', bill: BillDetail): string {
   const party = (bill.party?.name ?? 'party')
     .replace(/[^a-z0-9]+/gi, '-')
@@ -247,19 +274,22 @@ export async function shareBillPdf(args: {
   bill: BillDetail;
   business: BusinessProfile | null;
 }): Promise<void> {
-  const { uri } = await Print.printToFileAsync({
+  // The file expo-print produces cannot be handed to the share sheet, and
+  // cannot even be read back to copy it -- it lands in a scoped cache
+  // directory the app has no read permission for. So the PDF comes back as
+  // base64 and this writes it into the document directory itself, which is
+  // both writable and shareable. Nothing ever reads the print output.
+  const { base64 } = await Print.printToFileAsync({
     html: buildBillHtml(args),
-    base64: false,
+    base64: true,
   });
 
-  // expo-print writes into its own cache subdirectory, which the share sheet is
-  // not permitted to read -- sharing straight from there fails with "Not
-  // allowed to read file under given URL". Copying into the document directory
-  // puts the file somewhere shareable, and gives it a name the customer can
-  // recognise instead of a uuid.
+  if (!base64) throw new Error('The PDF came back empty.');
+
   const target = new File(Paths.document, fileNameFor(args.kind, args.bill));
   if (target.exists) target.delete();
-  await new File(uri).copy(target);
+  target.create();
+  target.write(base64ToBytes(base64));
 
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device.');

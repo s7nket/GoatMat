@@ -46,14 +46,24 @@ export default function HomeScreen() {
         title={`Hi, ${firstName}`}
         subtitle={rangeLabel}
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            hitSlop={10}
-            onPress={() => router.push('/settings')}
-            style={styles.settings}>
-            <Feather name="settings" size={18} color={colors.textSecondary} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reports"
+              hitSlop={10}
+              onPress={() => router.push('/reports')}
+              style={styles.iconButton}>
+              <Feather name="bar-chart-2" size={18} color={colors.textSecondary} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={10}
+              onPress={() => router.push('/settings')}
+              style={styles.iconButton}>
+              <Feather name="settings" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
         }
       />
 
@@ -215,7 +225,8 @@ function QuickAction({
 }
 
 const styles = StyleSheet.create({
-  settings: {
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: radius.full,

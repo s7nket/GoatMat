@@ -17,7 +17,7 @@ handed out directly.
 | 2 | Purchase + sale entry, live stock | **done** |
 | 3 | PDF kaccha bill, WhatsApp share | **done** |
 | 4 | Offline outbox + sync | next |
-| 5 | Date-range reports | |
+| 5 | Date-range reports | **done** |
 | 6 | Payments / udhaar ledger | |
 | 7 | EAS build + GitHub Release | |
 

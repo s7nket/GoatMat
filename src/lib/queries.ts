@@ -241,6 +241,144 @@ export function useBill(kind: 'sale' | 'purchase', id: string | undefined) {
   });
 }
 
+export type ReportProductRow = {
+  id: string;
+  name: string;
+  soldQty: number;
+  soldValue: number;
+  boughtQty: number;
+  boughtValue: number;
+};
+
+export type ReportPartyRow = { id: string; name: string; value: number; bills: number };
+
+export type ReportSummary = {
+  salesTotal: number;
+  salesCount: number;
+  purchaseTotal: number;
+  purchaseCount: number;
+  margin: number;
+  collected: number;
+  paidOut: number;
+  products: ReportProductRow[];
+  topCustomers: ReportPartyRow[];
+};
+
+type ReportBill = {
+  id: string;
+  total_amount: number;
+  paid_amount: number;
+  party: { id: string; name: string } | null;
+  items: { qty: number; amount: number; product: { id: string; name: string } | null }[];
+};
+
+const REPORT_COLUMNS = (itemTable: string) =>
+  `id, total_amount, paid_amount, party:parties(id, name), ` +
+  `items:${itemTable}(qty, amount, product:products(id, name))`;
+
+/**
+ * Aggregated in JavaScript rather than SQL. The dataset is a few hundred bills
+ * a year, so one round trip and a reduce is simpler than maintaining reporting
+ * views -- and it keeps the date-range logic in one readable place.
+ */
+export function useReport(from: string, to: string) {
+  return useQuery({
+    queryKey: ['report', from, to],
+    queryFn: async (): Promise<ReportSummary> => {
+      const [salesRes, purchasesRes] = await Promise.all([
+        supabase
+          .from('sales')
+          .select(REPORT_COLUMNS('sale_items'))
+          .gte('bill_date', from)
+          .lte('bill_date', to)
+          .is('voided_at', null),
+        supabase
+          .from('purchases')
+          .select(REPORT_COLUMNS('purchase_items'))
+          .gte('bill_date', from)
+          .lte('bill_date', to)
+          .is('voided_at', null),
+      ]);
+
+      if (salesRes.error) throw salesRes.error;
+      if (purchasesRes.error) throw purchasesRes.error;
+
+      const sales = (salesRes.data ?? []) as unknown as ReportBill[];
+      const purchases = (purchasesRes.data ?? []) as unknown as ReportBill[];
+
+      const products = new Map<string, ReportProductRow>();
+      const customers = new Map<string, ReportPartyRow>();
+
+      function productRow(id: string, name: string): ReportProductRow {
+        const existing = products.get(id);
+        if (existing) return existing;
+        const created: ReportProductRow = {
+          id,
+          name,
+          soldQty: 0,
+          soldValue: 0,
+          boughtQty: 0,
+          boughtValue: 0,
+        };
+        products.set(id, created);
+        return created;
+      }
+
+      let salesTotal = 0;
+      let collected = 0;
+      for (const bill of sales) {
+        salesTotal += Number(bill.total_amount ?? 0);
+        collected += Number(bill.paid_amount ?? 0);
+
+        if (bill.party) {
+          const row = customers.get(bill.party.id) ?? {
+            id: bill.party.id,
+            name: bill.party.name,
+            value: 0,
+            bills: 0,
+          };
+          row.value += Number(bill.total_amount ?? 0);
+          row.bills += 1;
+          customers.set(bill.party.id, row);
+        }
+
+        for (const item of bill.items ?? []) {
+          if (!item.product) continue;
+          const row = productRow(item.product.id, item.product.name);
+          row.soldQty += item.qty;
+          row.soldValue += Number(item.amount ?? 0);
+        }
+      }
+
+      let purchaseTotal = 0;
+      let paidOut = 0;
+      for (const bill of purchases) {
+        purchaseTotal += Number(bill.total_amount ?? 0);
+        paidOut += Number(bill.paid_amount ?? 0);
+
+        for (const item of bill.items ?? []) {
+          if (!item.product) continue;
+          const row = productRow(item.product.id, item.product.name);
+          row.boughtQty += item.qty;
+          row.boughtValue += Number(item.amount ?? 0);
+        }
+      }
+
+      return {
+        salesTotal,
+        salesCount: sales.length,
+        purchaseTotal,
+        purchaseCount: purchases.length,
+        margin: salesTotal - purchaseTotal,
+        collected,
+        paidOut,
+        products: [...products.values()].sort((a, b) => b.soldValue - a.soldValue),
+        topCustomers: [...customers.values()].sort((a, b) => b.value - a.value).slice(0, 5),
+      };
+    },
+  });
+}
+
 export function useProducts() {
   return useQuery({
     queryKey: keys.products,
