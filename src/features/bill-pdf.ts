@@ -1,3 +1,4 @@
+import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -17,6 +18,14 @@ function escapeHtml(value: string | null | undefined): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function fileNameFor(kind: 'sale' | 'purchase', bill: BillDetail): string {
+  const party = (bill.party?.name ?? 'party')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24);
+  return `${kind === 'sale' ? 'Bill' : 'Purchase'}-${bill.bill_no}-${party || 'party'}.pdf`;
 }
 
 export function buildBillHtml({
@@ -238,20 +247,25 @@ export async function shareBillPdf(args: {
   bill: BillDetail;
   business: BusinessProfile | null;
 }): Promise<void> {
-  // The file is shared exactly where expo-print wrote it. Renaming or moving it
-  // first produces a path outside the sandbox the OS lets the share sheet read,
-  // which fails with "Not allowed to read file under given URL". The cost is a
-  // uuid filename on the attachment; the bill itself is unaffected.
   const { uri } = await Print.printToFileAsync({
     html: buildBillHtml(args),
     base64: false,
   });
 
+  // expo-print writes into its own cache subdirectory, which the share sheet is
+  // not permitted to read -- sharing straight from there fails with "Not
+  // allowed to read file under given URL". Copying into the document directory
+  // puts the file somewhere shareable, and gives it a name the customer can
+  // recognise instead of a uuid.
+  const target = new File(Paths.document, fileNameFor(args.kind, args.bill));
+  if (target.exists) target.delete();
+  await new File(uri).copy(target);
+
   if (!(await Sharing.isAvailableAsync())) {
     throw new Error('Sharing is not available on this device.');
   }
 
-  await Sharing.shareAsync(uri, {
+  await Sharing.shareAsync(target.uri, {
     mimeType: 'application/pdf',
     dialogTitle: args.kind === 'sale' ? 'Send bill' : 'Share purchase record',
     UTI: 'com.adobe.pdf',

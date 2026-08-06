@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase';
 
 /** Every query key starts here so a single invalidate can clear a whole area. */
 export const keys = {
-  dashboard: (day: string) => ['dashboard', day] as const,
+  dashboard: (from: string, to: string) => ['dashboard', from, to] as const,
   stock: ['stock'] as const,
   balances: ['balances'] as const,
   sales: ['sales'] as const,
@@ -36,20 +36,71 @@ export function useBusinessProfile() {
   });
 }
 
+/**
+ * Home used to be hard-wired to today, which meant that at midnight the screen
+ * reset to zero and yesterday's trade became unreachable. The period is now
+ * chosen by the user; today is merely the default.
+ */
+export type DashboardPeriod = 'today' | 'yesterday' | 'week' | 'month';
+
+export const PERIOD_LABELS: Record<DashboardPeriod, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  week: '7 days',
+  month: 'This month',
+};
+
+export function periodRange(period: DashboardPeriod): { from: string; to: string } {
+  const today = new Date();
+
+  switch (period) {
+    case 'yesterday': {
+      const day = new Date(today);
+      day.setDate(day.getDate() - 1);
+      return { from: toISODate(day), to: toISODate(day) };
+    }
+    case 'week': {
+      const start = new Date(today);
+      // Seven days inclusive of today, not today plus seven.
+      start.setDate(start.getDate() - 6);
+      return { from: toISODate(start), to: toISODate(today) };
+    }
+    case 'month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from: toISODate(start), to: toISODate(today) };
+    }
+    default:
+      return { from: toISODate(today), to: toISODate(today) };
+  }
+}
+
 export type DashboardSummary = {
-  salesToday: number;
-  salesCountToday: number;
-  purchasesToday: number;
-  purchaseCountToday: number;
+  salesTotal: number;
+  salesCount: number;
+  purchaseTotal: number;
+  purchaseCount: number;
+  /** Sales minus purchases over the period. Not true profit -- see the note on Home. */
+  grossMargin: number;
+  /** Current state, not period-scoped: what is owed right now. */
   receivable: number;
   payable: number;
   lowStock: StockRow[];
 };
 
-async function fetchDashboard(day: string): Promise<DashboardSummary> {
+async function fetchDashboard(from: string, to: string): Promise<DashboardSummary> {
   const [salesRes, purchasesRes, balanceRes, stockRes] = await Promise.all([
-    supabase.from('sales').select('total_amount').eq('bill_date', day).is('voided_at', null),
-    supabase.from('purchases').select('total_amount').eq('bill_date', day).is('voided_at', null),
+    supabase
+      .from('sales')
+      .select('total_amount')
+      .gte('bill_date', from)
+      .lte('bill_date', to)
+      .is('voided_at', null),
+    supabase
+      .from('purchases')
+      .select('total_amount')
+      .gte('bill_date', from)
+      .lte('bill_date', to)
+      .is('voided_at', null),
     supabase.from('party_balance_view').select('balance'),
     supabase.from('stock_view').select('*'),
   ]);
@@ -66,11 +117,15 @@ async function fetchDashboard(day: string): Promise<DashboardSummary> {
   const sum = (rows: { total_amount: number }[]) =>
     rows.reduce((acc, r) => acc + Number(r.total_amount ?? 0), 0);
 
+  const salesTotal = sum(sales);
+  const purchaseTotal = sum(purchases);
+
   return {
-    salesToday: sum(sales),
-    salesCountToday: sales.length,
-    purchasesToday: sum(purchases),
-    purchaseCountToday: purchases.length,
+    salesTotal,
+    salesCount: sales.length,
+    purchaseTotal,
+    purchaseCount: purchases.length,
+    grossMargin: salesTotal - purchaseTotal,
     // Positive balance = money owed to us; negative = money we owe.
     receivable: balances.reduce((acc, b) => acc + Math.max(0, Number(b.balance ?? 0)), 0),
     payable: balances.reduce((acc, b) => acc + Math.max(0, -Number(b.balance ?? 0)), 0),
@@ -80,11 +135,11 @@ async function fetchDashboard(day: string): Promise<DashboardSummary> {
   };
 }
 
-export function useDashboard() {
-  const day = toISODate();
+export function useDashboard(period: DashboardPeriod) {
+  const { from, to } = periodRange(period);
   return useQuery({
-    queryKey: keys.dashboard(day),
-    queryFn: () => fetchDashboard(day),
+    queryKey: keys.dashboard(from, to),
+    queryFn: () => fetchDashboard(from, to),
   });
 }
 
