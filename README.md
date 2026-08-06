@@ -33,16 +33,15 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
 
 1. Create a project at [supabase.com](https://supabase.com) — region **Mumbai (ap-south-1)**.
 2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql), run it.
+   *Already ran an earlier copy?* Run
+   [`supabase/002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql) too.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
-   This app has no sign-up screen; accounts are created by hand.
+   This app has no sign-up screen — accounts only exist because you made them.
 4. **Authentication → Users → Add user** for each person. Confirm the email.
-5. Back in **SQL Editor**, put each user on the roster — nothing is readable
-   until this row exists:
 
-   ```sql
-   insert into members (user_id, full_name, role)
-   values ('<paste-the-user-uuid>', 'Your Name', 'owner');
-   ```
+That is the whole flow. A trigger creates the matching `members` row on every
+new auth user, so there is no UUID to copy and no SQL to run per person. The
+first user created becomes `owner`; everyone after is `staff`.
 
 ### 3. Local env
 
@@ -90,6 +89,25 @@ src/
   theme/tokens.ts       every colour, size, shadow in the app
 supabase/schema.sql     run this in Supabase Studio
 ```
+
+## Managing people
+
+Everything happens in Supabase Studio — the app has no admin screen and needs
+no redeploy.
+
+| To do this | Go here |
+|---|---|
+| Add someone | **Authentication → Users → Add user**. Their membership row appears automatically. |
+| Set their display name | On the same dialog, add `full_name` to user metadata. Otherwise it is derived from the email. |
+| Revoke access | **Table Editor → members**, set `active` to `false`. |
+| Restore access | Set `active` back to `true`. |
+| Remove permanently | Delete the auth user. The membership row cascades away. |
+
+Revoking beats deleting: `active = false` cuts every read and write instantly
+while their name stays attached to the bills they entered. Deleting a user who
+already recorded sales leaves those bills with a dangling `created_by`.
+
+The change takes effect on their next request — no need to touch their phone.
 
 ## Rules that keep the data honest
 

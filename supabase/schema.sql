@@ -9,14 +9,23 @@ create extension if not exists "pgcrypto";
 
 -- ---------------------------------------------------------------------------
 -- 1. Membership -- the single gate every RLS policy leans on.
---    Only rows in this table can touch business data.
+--    Only rows in this table, with active = true, can touch business data.
+--
+--    Rows are created automatically by the trigger below whenever you add a
+--    user in Supabase Studio. Nothing is hand-inserted. To revoke access,
+--    flip `active` to false in the table editor -- the person keeps their
+--    login but every read and write starts failing immediately, and their
+--    history stays attached to their name.
 -- ---------------------------------------------------------------------------
 create table if not exists members (
   user_id     uuid primary key references auth.users (id) on delete cascade,
   full_name   text not null,
   role        text not null default 'staff' check (role in ('owner', 'staff')),
+  active      boolean not null default true,
   created_at  timestamptz not null default now()
 );
+
+alter table members add column if not exists active boolean not null default true;
 
 create or replace function is_member()
 returns boolean
@@ -25,8 +34,59 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (select 1 from members where user_id = auth.uid());
+  select exists (
+    select 1 from members
+    where user_id = auth.uid() and active
+  );
 $$;
+
+-- Every new auth user gets a membership row. The first one is the owner.
+-- Name comes from the metadata you can set when inviting; otherwise it is
+-- derived from the email so the app always has something to greet them with.
+create or replace function handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  first_user boolean;
+  display    text;
+begin
+  select count(*) = 0 into first_user from members;
+
+  display := coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
+    nullif(trim(new.raw_user_meta_data ->> 'name'), ''),
+    initcap(replace(split_part(new.email, '@', 1), '.', ' ')),
+    'Member'
+  );
+
+  insert into members (user_id, full_name, role)
+  values (new.id, display, case when first_user then 'owner' else 'staff' end)
+  on conflict (user_id) do nothing;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function handle_new_auth_user();
+
+-- Backfill anyone who already existed before the trigger did.
+insert into members (user_id, full_name, role)
+select
+  u.id,
+  coalesce(
+    nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''),
+    initcap(replace(split_part(u.email, '@', 1), '.', ' ')),
+    'Member'
+  ),
+  case when row_number() over (order by u.created_at) = 1 then 'owner' else 'staff' end
+from auth.users u
+on conflict (user_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- 2. updated_at trigger

@@ -1,0 +1,10 @@
+# Normalise line endings so Windows checkouts stop rewriting every file and
+# diffs stay readable across machines.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.keystore binary
+*.jks binary

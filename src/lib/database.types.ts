@@ -110,6 +110,8 @@ export type Member = {
   user_id: string;
   full_name: string;
   role: 'owner' | 'staff';
+  /** Flipped off in Supabase Studio to revoke access without deleting history. */
+  active: boolean;
   created_at: string;
 };
 

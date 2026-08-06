@@ -2,16 +2,41 @@ import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { Button, Screen, Text } from '@/components/ui';
+import { Button, ErrorState, LoadingState, Screen, Text } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { colors, fontFamily, spacing } from '@/theme/tokens';
 
 export default function TabsLayout() {
-  const { member, session, signOut } = useAuth();
+  const { memberStatus, session, signOut, refreshMember } = useAuth();
 
-  // Authenticated but not on the roster: RLS will deny every read, so say so
-  // plainly rather than showing five empty screens.
-  if (session && member === null) return <NotAMemberScreen onSignOut={signOut} email={session.user.email} />;
+  // Signed in, but no readable membership row -- either the account was never
+  // activated or it has been switched off. RLS denies every query in that
+  // state, so say so plainly instead of showing five empty screens.
+  //
+  // A failed request is a separate case on purpose: a dead signal must never
+  // read as "you have no access".
+  if (memberStatus === 'checking') {
+    return (
+      <Screen>
+        <LoadingState label="Checking access" />
+      </Screen>
+    );
+  }
+
+  if (memberStatus === 'denied') {
+    return <NoAccessScreen onSignOut={signOut} email={session?.user.email} />;
+  }
+
+  if (memberStatus === 'error') {
+    return (
+      <Screen>
+        <ErrorState
+          message="Could not confirm your access. Check the connection and try again."
+          onRetry={refreshMember}
+        />
+      </Screen>
+    );
+  }
 
   return (
     <Tabs
@@ -69,7 +94,7 @@ export default function TabsLayout() {
   );
 }
 
-function NotAMemberScreen({ email, onSignOut }: { email?: string; onSignOut: () => void }) {
+function NoAccessScreen({ email, onSignOut }: { email?: string; onSignOut: () => void }) {
   return (
     <Screen>
       <View style={styles.blocked}>
@@ -77,11 +102,11 @@ function NotAMemberScreen({ email, onSignOut }: { email?: string; onSignOut: () 
           <Feather name="user-x" size={26} color={colors.warning} />
         </View>
         <Text variant="title" center>
-          Account not activated
+          No access
         </Text>
         <Text variant="body" tone="secondary" center>
-          {email ? `${email} signed in, but ` : ''}this account has not been added to the business
-          yet. Ask the owner to add you, then sign in again.
+          {email ? `${email} signed in, but this account ` : 'This account '}
+          is not active for this business. Ask the owner to enable it, then sign in again.
         </Text>
         <Button label="Sign out" variant="secondary" icon="log-out" onPress={onSignOut} />
       </View>
