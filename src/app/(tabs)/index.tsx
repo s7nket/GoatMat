@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,21 +14,28 @@ import {
   RowDivider,
   ScrollScreen,
   SectionHeader,
+  Segmented,
   StatCard,
   Text,
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { money, moneyShort, pieces, prettyDate } from '@/lib/format';
-import { useDashboard } from '@/lib/queries';
+import { type DashboardPeriod, PERIOD_LABELS, periodRange, useDashboard } from '@/lib/queries';
 import { colors, radius, shadow, spacing } from '@/theme/tokens';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { member, signOut } = useAuth();
-  const { data, isPending, isError, error, refetch, isRefetching } = useDashboard();
+  const { member } = useAuth();
+  const [period, setPeriod] = useState<DashboardPeriod>('today');
+  const { data, isPending, isError, error, refetch, isRefetching } = useDashboard(period);
 
   const firstName = member?.full_name?.split(' ')[0] ?? 'there';
+  const range = periodRange(period);
+  const rangeLabel =
+    range.from === range.to
+      ? prettyDate(range.from)
+      : `${prettyDate(range.from)} – ${prettyDate(range.to)}`;
 
   return (
     <ScrollScreen
@@ -36,16 +44,26 @@ export default function HomeScreen() {
       refreshing={isRefetching}>
       <PageHeader
         title={`Hi, ${firstName}`}
-        subtitle={prettyDate(new Date())}
+        subtitle={rangeLabel}
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Sign out"
-            hitSlop={10}
-            onPress={signOut}
-            style={styles.signOut}>
-            <Feather name="log-out" size={18} color={colors.textSecondary} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reports"
+              hitSlop={10}
+              onPress={() => router.push('/reports')}
+              style={styles.iconButton}>
+              <Feather name="bar-chart-2" size={18} color={colors.textSecondary} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Settings"
+              hitSlop={10}
+              onPress={() => router.push('/settings')}
+              style={styles.iconButton}>
+              <Feather name="settings" size={18} color={colors.textSecondary} />
+            </Pressable>
+          </View>
         }
       />
 
@@ -64,8 +82,17 @@ export default function HomeScreen() {
         />
       </View>
 
+      <Segmented
+        value={period}
+        onChange={setPeriod}
+        options={(Object.keys(PERIOD_LABELS) as DashboardPeriod[]).map((value) => ({
+          value,
+          label: PERIOD_LABELS[value],
+        }))}
+      />
+
       {isPending ? (
-        <LoadingState label="Loading today's numbers" />
+        <LoadingState label="Loading numbers" />
       ) : isError ? (
         <ErrorState
           message={error instanceof Error ? error.message : 'Could not reach the server.'}
@@ -75,20 +102,38 @@ export default function HomeScreen() {
         <>
           <View style={styles.statGrid}>
             <StatCard
-              label="Sold today"
-              value={moneyShort(data.salesToday)}
-              caption={`${data.salesCountToday} ${data.salesCountToday === 1 ? 'bill' : 'bills'}`}
+              label="Sold"
+              value={moneyShort(data.salesTotal)}
+              caption={`${data.salesCount} ${data.salesCount === 1 ? 'bill' : 'bills'}`}
               icon="trending-up"
               tone="success"
             />
             <StatCard
-              label="Bought today"
-              value={moneyShort(data.purchasesToday)}
-              caption={`${data.purchaseCountToday} ${data.purchaseCountToday === 1 ? 'bill' : 'bills'}`}
+              label="Bought"
+              value={moneyShort(data.purchaseTotal)}
+              caption={`${data.purchaseCount} ${data.purchaseCount === 1 ? 'bill' : 'bills'}`}
               icon="shopping-bag"
               tone="info"
             />
           </View>
+
+          {/* Sold minus bought over the period. Not profit: stock bought this
+              month may sell next month, and expenses are not in yet. */}
+          <Card style={styles.margin}>
+            <View style={styles.marginText}>
+              <Text variant="label" tone="secondary">
+                Sold minus bought
+              </Text>
+              <Text variant="caption" tone="muted">
+                Cash flow over the period, not profit
+              </Text>
+            </View>
+            <Text
+              variant="amount"
+              tone={data.grossMargin > 0 ? 'success' : data.grossMargin < 0 ? 'danger' : 'muted'}>
+              {money(data.grossMargin)}
+            </Text>
+          </Card>
 
           <Card padded={false}>
             <View style={styles.cardHead}>
@@ -180,7 +225,8 @@ function QuickAction({
 }
 
 const styles = StyleSheet.create({
-  signOut: {
+  headerActions: { flexDirection: 'row', gap: spacing.sm },
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: radius.full,
@@ -203,5 +249,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   statGrid: { flexDirection: 'row', gap: spacing.md },
+  margin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  marginText: { flex: 1, gap: 1 },
   cardHead: { padding: spacing.lg, paddingBottom: spacing.md },
 });

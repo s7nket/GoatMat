@@ -82,12 +82,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="reports"
+        name="stock"
         options={{
-          title: 'Reports',
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="bar-chart-2" size={size - 2} color={color} />
-          ),
+          title: 'Stock',
+          tabBarIcon: ({ color, size }) => <Feather name="package" size={size - 2} color={color} />,
         }}
       />
     </Tabs>

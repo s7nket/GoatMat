@@ -15,9 +15,9 @@ handed out directly.
 | 0 | Project setup, design system, database schema, auth, tab shell | **done** |
 | 1 | Products, suppliers, customers CRUD | **done** |
 | 2 | Purchase + sale entry, live stock | **done** |
-| 3 | PDF kaccha bill, WhatsApp share | next |
-| 4 | Offline outbox + sync | |
-| 5 | Date-range reports | |
+| 3 | PDF kaccha bill, WhatsApp share | **done** |
+| 4 | Offline outbox + sync | next |
+| 5 | Date-range reports | **done** |
 | 6 | Payments / udhaar ledger | |
 | 7 | EAS build + GitHub Release | |
 
@@ -34,8 +34,9 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
 1. Create a project at [supabase.com](https://supabase.com) — region **Mumbai (ap-south-1)**.
 2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql), run it.
    *Already ran an earlier copy?* Run the numbered migrations you have not applied
-   yet — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
-   then [`003_bill_entry.sql`](supabase/003_bill_entry.sql). All are safe to re-run.
+   yet, in order — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
+   [`003_bill_entry.sql`](supabase/003_bill_entry.sql),
+   [`004_business_profile.sql`](supabase/004_business_profile.sql). All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.
 4. **Authentication → Users → Add user** for each person. Confirm the email.

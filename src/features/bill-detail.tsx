@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import {
@@ -15,9 +16,10 @@ import {
   SectionHeader,
   Text,
 } from '@/components/ui';
+import { shareBillPdf } from '@/features/bill-pdf';
 import { money, pieces, prettyDate } from '@/lib/format';
 import { useVoidBill } from '@/lib/mutations';
-import { useBill } from '@/lib/queries';
+import { useBill, useBusinessProfile } from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 const MODE_LABELS: Record<string, string> = {
@@ -31,7 +33,21 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
   const isSale = kind === 'sale';
   const router = useRouter();
   const { data: bill, isPending, isError, error, refetch } = useBill(kind, id);
+  const { data: business } = useBusinessProfile();
   const voidBill = useVoidBill(kind);
+  const [sharing, setSharing] = useState(false);
+
+  async function handleShare() {
+    if (!bill) return;
+    setSharing(true);
+    try {
+      await shareBillPdf({ kind, bill, business: business ?? null });
+    } catch (e) {
+      Alert.alert('Could not create the PDF', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSharing(false);
+    }
+  }
 
   function handleVoid() {
     Alert.alert(
@@ -92,6 +108,15 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
       <FormHeader
         title={`${isSale ? 'Sale' : 'Purchase'} #${bill.bill_no}`}
         subtitle={prettyDate(bill.bill_date)}
+        right={
+          <Button
+            label={isSale ? 'Send' : 'Share'}
+            size="sm"
+            icon="share-2"
+            loading={sharing}
+            onPress={handleShare}
+          />
+        }
       />
 
       <ScrollScreen clearsTabBar={false} contentContainerStyle={styles.content}>
