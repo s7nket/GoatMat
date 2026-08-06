@@ -370,10 +370,11 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
           // Backdating is normal -- bills get entered days late. Future dates
           // are always a typo.
           maximumDate={new Date()}
-          onChange={(event, selected) => {
+          onValueChange={(_event, selected) => {
             setShowDate(false);
-            if (event.type === 'set' && selected) setBillDate(selected);
+            if (selected) setBillDate(selected);
           }}
+          onDismiss={() => setShowDate(false)}
         />
       ) : null}
     </Screen>
