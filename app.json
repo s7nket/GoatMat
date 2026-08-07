@@ -8,6 +8,9 @@
     "scheme": "goatmat",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8FAFC",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.goatmat.app"
