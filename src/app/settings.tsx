@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Switch, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -40,10 +40,9 @@ function describeJob(job: OutboxJob): string {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { member, session, signOut } = useAuth();
+  const { profile, session, signOut } = useAuth();
   const { data: business, isPending } = useBusinessProfile();
-  const { online, pending, failed, syncing, sync, retry, discard, simulateOffline, setSimulateOffline } =
-    useOffline();
+  const { online, pending, failed, syncing, sync, retry, discard } = useOffline();
   const save = useSaveBusinessProfile();
 
   const [name, setName] = useState('');
@@ -53,8 +52,11 @@ export default function SettingsScreen() {
   const [footer, setFooter] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
+  // Hydrate the form once the row arrives. The fields are edited locally
+  // afterwards, so they cannot simply be derived from the query.
   useEffect(() => {
     if (!business) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(business.business_name ?? '');
     setOwner(business.owner_name ?? '');
     setPhone(business.phone ?? '');
@@ -103,7 +105,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <FormHeader title="Settings" subtitle="Bill header and account" />
+      <FormHeader title="Settings" subtitle="Business details and account" />
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -169,20 +171,6 @@ export default function SettingsScreen() {
                   }
                   chevron={false}
                 />
-                <RowDivider />
-                <View style={styles.switchRow}>
-                  <View style={styles.switchText}>
-                    <Text variant="bodyMedium">Test offline mode</Text>
-                    <Text variant="caption" tone="secondary">
-                      Pretend there is no signal, without turning off your data
-                    </Text>
-                  </View>
-                  <Switch
-                    value={simulateOffline}
-                    onValueChange={setSimulateOffline}
-                    trackColor={{ true: colors.primary }}
-                  />
-                </View>
               </Card>
 
               {pending.length > 0 && online ? (
@@ -246,23 +234,15 @@ export default function SettingsScreen() {
               <Card padded={false}>
                 <ListRow
                   icon="user"
-                  title={member?.full_name ?? 'Member'}
+                  title={profile?.owner_name ?? 'Owner'}
                   subtitle={session?.user.email ?? undefined}
-                  chevron={false}
-                />
-                <RowDivider />
-                <ListRow
-                  icon="shield"
-                  title="Role"
-                  subtitle={member?.role === 'owner' ? 'Owner' : 'Staff'}
                   chevron={false}
                 />
               </Card>
 
               <View style={styles.signOut}>
                 <Text variant="caption" tone="muted">
-                  Access is managed in Supabase. Removing someone there cuts them off everywhere,
-                  without touching their phone.
+                  Your books are yours alone — no other account can see or change them.
                 </Text>
                 <Button
                   label="Sign out"
@@ -294,14 +274,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  switchText: { flex: 1, gap: 1 },
   failedNote: { paddingHorizontal: spacing.xs, marginTop: -spacing.sm },
   failedRow: { padding: spacing.lg, gap: spacing.md },
   failedText: { gap: 2 },

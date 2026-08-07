@@ -115,8 +115,8 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
           title={isSale ? 'No sales yet' : 'No purchases yet'}
           message={
             isSale
-              ? 'Raise a bill: pick the customer, add mats by piece, save.'
-              : 'Recording a purchase is how stock goes up — it is never typed in directly.'
+              ? 'Pick a customer, add what you sold, and send them the bill.'
+              : 'Record what you bought and your stock updates automatically.'
           }
           actionLabel={isSale ? 'New sale' : 'New purchase'}
           onAction={openNew}

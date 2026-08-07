@@ -28,7 +28,7 @@ export default function StockScreen() {
       contentContainerStyle={{ paddingTop: insets.top + spacing.sm }}
       onRefresh={refetch}
       refreshing={isRefetching}>
-      <PageHeader title="Stock" subtitle="Bought minus sold, live" />
+      <PageHeader title="Stock" subtitle="Live, from your bills" />
 
       <SectionHeader
         title="On hand"
@@ -54,7 +54,7 @@ export default function StockScreen() {
         <EmptyState
           icon="package"
           title="No products yet"
-          message="Add each mat type once. Stock is then bought minus sold, computed live — never typed in."
+          message="Add each mat type once, then your stock keeps itself up to date as you buy and sell."
           actionLabel="Add product"
           onAction={() => router.push({ pathname: '/products/[id]', params: { id: 'new' } })}
         />

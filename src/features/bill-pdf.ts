@@ -2,7 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-import type { BusinessProfile } from '@/lib/database.types';
+import type { Profile } from '@/lib/database.types';
 import { money, prettyDate } from '@/lib/format';
 import type { BillDetail } from '@/lib/queries';
 
@@ -47,6 +47,42 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes.subarray(0, out);
 }
 
+const ONES = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
+  'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function twoDigits(n: number): string {
+  if (n < 20) return ONES[n];
+  return (TENS[Math.floor(n / 10)] + ' ' + ONES[n % 10]).trim();
+}
+
+/**
+ * Amount in words, in the lakh/crore grouping every Indian bill uses. Customers
+ * expect it, and it is what stops a figure being altered after the fact.
+ */
+function rupeesInWords(value: number): string {
+  const total = Math.round(Math.abs(value));
+  if (total === 0) return 'Zero Rupees Only';
+
+  const parts: string[] = [];
+  const crore = Math.floor(total / 1_00_00_000);
+  const lakh = Math.floor((total % 1_00_00_000) / 1_00_000);
+  const thousand = Math.floor((total % 1_00_000) / 1000);
+  const hundred = Math.floor((total % 1000) / 100);
+  const rest = total % 100;
+
+  if (crore) parts.push(`${twoDigits(crore)} Crore`);
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+  if (hundred) parts.push(`${ONES[hundred]} Hundred`);
+  if (rest) parts.push(twoDigits(rest));
+
+  return `${parts.join(' ')} Rupees Only`;
+}
+
 function fileNameFor(kind: 'sale' | 'purchase', bill: BillDetail): string {
   const party = (bill.party?.name ?? 'party')
     .replace(/[^a-z0-9]+/gi, '-')
@@ -62,7 +98,7 @@ export function buildBillHtml({
 }: {
   kind: 'sale' | 'purchase';
   bill: BillDetail;
-  business: BusinessProfile | null;
+  business: Profile | null;
 }): string {
   const isSale = kind === 'sale';
   const balance = Number(bill.total_amount) - Number(bill.paid_amount);
@@ -98,14 +134,19 @@ export function buildBillHtml({
     <style>
       /* Self-contained: no web fonts, no remote assets. The PDF has to render
          identically on a phone with no signal. */
+      /* The page margin belongs here, not on the body. Giving the body an
+         explicit mm width inside a page that is already A4 makes the renderer
+         scale the whole document down to fit -- which is what made the text
+         small and left the page half empty. */
+      @page { size: A4; margin: 14mm; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 32px 28px;
+        padding: 0;
         font-family: -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
         color: #0F1720;
-        font-size: 13px;
-        line-height: 1.5;
+        font-size: 15px;
+        line-height: 1.55;
       }
       .head {
         display: flex;
@@ -115,51 +156,52 @@ export function buildBillHtml({
         padding-bottom: 16px;
         border-bottom: 2px solid #137A4C;
       }
-      .business { font-size: 20px; font-weight: 700; color: #0A3D26; letter-spacing: -0.3px; }
-      .muted { color: #64748B; font-size: 11px; }
+      .business { font-size: 26px; font-weight: 700; color: #0A3D26; letter-spacing: -0.4px; }
+      .muted { color: #64748B; font-size: 13px; }
       .doc-type {
         text-align: right;
-        font-size: 11px;
+        font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 1px;
         color: #64748B;
       }
-      .bill-no { font-size: 18px; font-weight: 700; }
+      .bill-no { font-size: 22px; font-weight: 700; color: #0F1720; }
       .parties { display: flex; justify-content: space-between; gap: 24px; margin: 20px 0 16px; }
       .label {
-        font-size: 10px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         color: #94A3B8;
         margin-bottom: 2px;
       }
-      .party-name { font-weight: 600; font-size: 14px; }
+      .party-name { font-weight: 600; font-size: 17px; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
       thead th {
         text-align: left;
-        font-size: 10px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.6px;
         color: #64748B;
-        border-bottom: 1px solid #CBD5E1;
-        padding: 8px 6px;
+        border-bottom: 1.5px solid #94A3B8;
+        padding: 10px 8px;
       }
-      tbody td { padding: 10px 6px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+      tbody td { padding: 12px 8px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
       .num { text-align: right; white-space: nowrap; }
       thead th.num { text-align: right; }
       .name { font-weight: 500; }
       .strong { font-weight: 600; }
-      .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
-      .totals table { width: 260px; }
-      .totals td { padding: 6px 0; border: none; }
+      .totals { margin-top: 20px; display: flex; justify-content: flex-end; }
+      .totals table { width: 320px; }
+      .totals td { padding: 7px 0; border: none; font-size: 15px; }
       .totals .grand td {
-        border-top: 1px solid #CBD5E1;
-        padding-top: 10px;
-        font-size: 16px;
+        border-top: 1.5px solid #94A3B8;
+        border-bottom: 1.5px solid #94A3B8;
+        padding: 12px 0;
+        font-size: 20px;
         font-weight: 700;
       }
-      .due { color: #DC2626; font-weight: 600; }
-      .settled { color: #137A4C; font-weight: 600; }
+      .due { color: #DC2626; font-weight: 700; }
+      .settled { color: #137A4C; font-weight: 700; }
       .voided {
         margin: 16px 0;
         padding: 10px 12px;
@@ -168,16 +210,30 @@ export function buildBillHtml({
         font-weight: 600;
         border-radius: 6px;
       }
-      .notes { margin-top: 20px; }
+      .words {
+        margin-top: 18px;
+        padding: 12px 14px;
+        background: #F1F5F9;
+        border-radius: 4px;
+      }
+      .notes { margin-top: 18px; }
       .foot {
-        margin-top: 32px;
-        padding-top: 12px;
+        margin-top: 48px;
+        padding-top: 16px;
         border-top: 1px solid #E2E8F0;
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        align-items: flex-end;
+        gap: 24px;
         color: #64748B;
-        font-size: 11px;
+        font-size: 13px;
+      }
+      .sign {
+        text-align: center;
+        min-width: 200px;
+        padding-top: 44px;
+        border-top: 1px solid #94A3B8;
+        color: #0F1720;
       }
     </style>
   </head>
@@ -188,8 +244,8 @@ export function buildBillHtml({
         ${contactLine ? `<div class="muted">${contactLine}</div>` : ''}
       </div>
       <div class="doc-type">
-        ${isSale ? 'Bill' : 'Purchase record'}
-        <div class="bill-no">#${bill.bill_no}</div>
+        ${isSale ? 'Invoice' : 'Purchase record'}
+        <div class="bill-no">No. ${bill.bill_no}</div>
         <div class="muted">${escapeHtml(prettyDate(bill.bill_date))}</div>
       </div>
     </div>
@@ -201,6 +257,7 @@ export function buildBillHtml({
         <div class="label">${isSale ? 'Billed to' : 'Bought from'}</div>
         <div class="party-name">${escapeHtml(bill.party?.name ?? '—')}</div>
         ${bill.party?.phone ? `<div class="muted">${escapeHtml(bill.party.phone)}</div>` : ''}
+        ${bill.party?.address ? `<div class="muted">${escapeHtml(bill.party.address)}</div>` : ''}
       </div>
       ${
         bill.supplier_ref
@@ -231,6 +288,10 @@ export function buildBillHtml({
           <td class="muted">Total pieces</td>
           <td class="num">${totalPieces}</td>
         </tr>
+        <tr class="grand">
+          <td>Total</td>
+          <td class="num">${money(bill.total_amount, { decimals: true })}</td>
+        </tr>
         <tr>
           <td class="muted">Paid</td>
           <td class="num">${money(bill.paid_amount, { decimals: true })}</td>
@@ -241,17 +302,18 @@ export function buildBillHtml({
             ${balance > 0 ? money(balance, { decimals: true }) : 'Settled'}
           </td>
         </tr>
-        <tr class="grand">
-          <td>Total</td>
-          <td class="num">${money(bill.total_amount, { decimals: true })}</td>
-        </tr>
       </table>
+    </div>
+
+    <div class="words">
+      <span class="label">Amount in words</span>
+      <div class="strong">${escapeHtml(rupeesInWords(Number(bill.total_amount)))}</div>
     </div>
 
     ${
       bill.notes
         ? `<div class="notes">
-             <div class="label">Notes</div>
+             <div class="label">Note</div>
              <div>${escapeHtml(bill.notes)}</div>
            </div>`
         : ''
@@ -259,7 +321,9 @@ export function buildBillHtml({
 
     <div class="foot">
       <div>${escapeHtml(business?.bill_footer || 'Thank you for your business.')}</div>
-      <div>${escapeHtml(business?.owner_name ?? '')}</div>
+      <div class="sign">
+        For ${escapeHtml(business?.business_name || 'GoatMat')}
+      </div>
     </div>
   </body>
 </html>`;
@@ -272,7 +336,7 @@ export function buildBillHtml({
 export async function shareBillPdf(args: {
   kind: 'sale' | 'purchase';
   bill: BillDetail;
-  business: BusinessProfile | null;
+  business: Profile | null;
 }): Promise<void> {
   // The file expo-print produces cannot be handed to the share sheet, and
   // cannot even be read back to copy it -- it lands in a scoped cache
@@ -282,6 +346,10 @@ export async function shareBillPdf(args: {
   const { base64 } = await Print.printToFileAsync({
     html: buildBillHtml(args),
     base64: true,
+    // A4 in points (72dpi): 210mm x 297mm. Without this the page is US Letter,
+    // which is what every printer and phone in India is not set up for.
+    width: 595,
+    height: 842,
   });
 
   if (!base64) throw new Error('The PDF came back empty.');

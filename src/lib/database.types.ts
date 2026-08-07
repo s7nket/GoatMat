@@ -106,13 +106,20 @@ export type Expense = Audit & {
   voided_at: string | null;
 };
 
-export type BusinessProfile = {
-  id: boolean;
+/**
+ * One row per user: their business details plus the switch that cuts off
+ * access. Replaces the old `members` roster and the single global
+ * `business_profile` -- each user is now their own tenant.
+ */
+export type Profile = {
+  user_id: string;
   business_name: string;
   owner_name: string | null;
   phone: string | null;
   address: string | null;
   bill_footer: string | null;
+  active: boolean;
+  created_at: string;
   updated_at: string;
 };
 
@@ -123,14 +130,6 @@ export type BillItemInput = {
   rate: number;
 };
 
-export type Member = {
-  user_id: string;
-  full_name: string;
-  role: 'owner' | 'staff';
-  /** Flipped off in Supabase Studio to revoke access without deleting history. */
-  active: boolean;
-  created_at: string;
-};
 
 export type StockRow = {
   id: string;
@@ -174,8 +173,7 @@ type Table<Row, InsertOptional extends keyof Row> = {
 export type Database = {
   public: {
     Tables: {
-      members: Table<Member, 'created_at'>;
-      business_profile: Table<BusinessProfile, 'id' | 'business_name' | 'updated_at'>;
+      profiles: Table<Profile, Generated | 'business_name' | 'active'>;
       products: Table<Product, Generated | 'id' | 'archived' | 'low_stock_at' | 'created_by'>;
       parties: Table<Party, Generated | 'id' | 'archived' | 'created_by'>;
       purchases: Table<
@@ -196,7 +194,8 @@ export type Database = {
       party_balance_view: { Row: PartyBalanceRow; Relationships: [] };
     };
     Functions: {
-      is_member: { Args: Record<string, never>; Returns: boolean };
+      is_active: { Args: Record<string, never>; Returns: boolean };
+      next_bill_no: { Args: { p_kind: 'sale' | 'purchase' }; Returns: number };
       create_sale: {
         Args: {
           p_id: string;

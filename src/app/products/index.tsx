@@ -25,7 +25,7 @@ export default function ProductsScreen() {
     <Screen>
       <FormHeader
         title="Products"
-        subtitle="Mat types you buy and sell"
+        subtitle="Your catalogue"
         right={
           <Button
             label="Add"
@@ -52,7 +52,7 @@ export default function ProductsScreen() {
           <EmptyState
             icon="package"
             title="No products yet"
-            message="Add each mat type once — size, GSM and your usual rate. Bills then pick from this list."
+            message="Add each mat type once — size, GSM and your usual rate — and it will be ready to pick on every bill."
             actionLabel="Add product"
             onAction={() => router.push({ pathname: '/products/[id]', params: { id: 'new' } })}
           />

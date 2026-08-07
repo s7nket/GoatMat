@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, Input, Screen, Text } from '@/components/ui';
+import { Button, Card, Input, Screen, Text } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
-import { colors, radius, spacing } from '@/theme/tokens';
+import { colors, radius, shadow, spacing } from '@/theme/tokens';
 
 export default function SignInScreen() {
   const { signIn } = useAuth();
@@ -54,17 +54,21 @@ export default function SignInScreen() {
           showsVerticalScrollIndicator={false}>
           <View style={styles.brand}>
             <View style={styles.mark}>
-              <Feather name="layers" size={26} color={colors.textInverse} />
+              <Feather name="layers" size={28} color={colors.textInverse} />
             </View>
             <View style={styles.brandText}>
-              <Text variant="display">GoatMat</Text>
-              <Text variant="body" tone="secondary">
-                Purchases, sales and stock in one place.
+              <Text variant="display" center>
+                GoatMat
+              </Text>
+              <Text variant="body" tone="secondary" center>
+                Purchases, sales and stock, in one place
               </Text>
             </View>
           </View>
 
-          <View style={styles.form}>
+          <Card style={styles.form}>
+            <Text variant="heading">Sign in</Text>
+
             <Input
               label="Email"
               icon="mail"
@@ -121,15 +125,19 @@ export default function SignInScreen() {
               label="Sign in"
               size="lg"
               fullWidth
+              iconRight="arrow-right"
               loading={busy}
               onPress={handleSignIn}
               style={styles.submit}
             />
-          </View>
+          </Card>
 
-          <Text variant="caption" tone="muted" center>
-            Private app. Accounts are created by the owner — there is no sign-up.
-          </Text>
+          <View style={styles.footer}>
+            <Feather name="lock" size={12} color={colors.textMuted} />
+            <Text variant="caption" tone="muted" center>
+              Your books are private to your account
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </Screen>
@@ -144,23 +152,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     gap: spacing['3xl'],
   },
-  brand: { gap: spacing.lg },
+  brand: { gap: spacing.xl, alignItems: 'center' },
   mark: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.lg,
+    width: 64,
+    height: 64,
+    borderRadius: radius.xl,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.raised,
+    shadowColor: colors.primaryDark,
   },
   brandText: { gap: spacing.xs },
-  form: { gap: spacing.lg },
+  // The form sits on its own raised surface so the eye lands on it rather than
+  // drifting between the mark and the fields.
+  form: { gap: spacing.lg, padding: spacing.xl },
   reveal: {
     position: 'absolute',
     right: spacing.md,
     // Sits over the field, clear of the label above it.
     top: 34,
     padding: spacing.xs,
+  },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
   error: {
     flexDirection: 'row',

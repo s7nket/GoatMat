@@ -1,7 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import type { Member } from '@/lib/database.types';
+import type { Profile } from '@/lib/database.types';
+import { resetCacheOnUserChange } from '@/lib/query-client';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -9,27 +10,38 @@ import { supabase } from '@/lib/supabase';
  * never be read as "this person has no access" -- that would lock a legitimate
  * user out of their own app on a weak signal.
  */
-export type MemberStatus = 'idle' | 'checking' | 'ready' | 'denied' | 'error';
+export type ProfileStatus = 'idle' | 'checking' | 'ready' | 'denied' | 'error';
 
 type AuthState = {
   session: Session | null;
-  member: Member | null;
-  memberStatus: MemberStatus;
+  profile: Profile | null;
+  profileStatus: ProfileStatus;
   /** True until the stored session has been read from disk. */
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  refreshMember: () => void;
+  refreshProfile: () => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [member, setMember] = useState<Member | null>(null);
-  const [memberStatus, setMemberStatus] = useState<MemberStatus>('idle');
-  const [memberNonce, setMemberNonce] = useState(0);
+  // Tagged with the user it belongs to. Signing in as someone else would
+  // otherwise show the previous account's profile until the new one arrives.
+  const [loaded, setLoaded] = useState<{
+    userId: string;
+    profile: Profile | null;
+    status: Extract<ProfileStatus, 'ready' | 'denied' | 'error'>;
+  } | null>(null);
+  const [profileNonce, setProfileNonce] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Derived rather than stored, so there is no state to clear on sign-out and
+  // no window where the two disagree.
+  const fresh = session && loaded?.userId === session.user.id ? loaded : null;
+  const profile = fresh?.profile ?? null;
+  const profileStatus: ProfileStatus = !session ? 'idle' : (fresh?.status ?? 'checking');
 
   useEffect(() => {
     let active = true;
@@ -51,45 +63,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // The membership row is what RLS actually checks. Fetching it here means a
-  // user who authenticates but is not active is caught at the door with a clear
-  // message, instead of hitting empty screens everywhere.
+  // The profile carries the business name and the active flag that RLS gates
+  // every other table on. Loading it here means a user whose access has been
+  // switched off is stopped at the door with a clear message, rather than
+  // finding five empty screens and assuming the app is broken.
   //
-  // An inactive member cannot read even their own row -- is_member() is false,
-  // so the select policy denies it and the result is an empty set, not an
-  // error. That is why "no row" means denied but a thrown error does not.
+  // A profile is readable by its owner regardless of `active`, so being turned
+  // off is a value on the row and not an empty result -- which keeps it
+  // distinct from a request that simply failed.
+  // Drop a cache belonging to a different account before anything reads it.
+  // Runs on sign-in, sign-out and cold start alike, so a persisted cache from
+  // a previous session can never be shown to the wrong owner.
   useEffect(() => {
-    let active = true;
-    if (!session) {
-      setMember(null);
-      setMemberStatus('idle');
-      return;
-    }
+    if (loading) return;
+    void resetCacheOnUserChange(session?.user.id ?? null);
+  }, [session, loading]);
 
-    setMemberStatus('checking');
+  useEffect(() => {
+    if (!session) return;
+    let running = true;
 
     supabase
-      .from('members')
+      .from('profiles')
       .select('*')
       .eq('user_id', session.user.id)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setMember(null);
-          setMemberStatus('error');
-          return;
-        }
-        setMember(data ?? null);
-        setMemberStatus(data ? 'ready' : 'denied');
+        if (!running) return;
+        setLoaded({
+          userId: session.user.id,
+          profile: error ? null : (data ?? null),
+          status: error ? 'error' : data && data.active ? 'ready' : 'denied',
+        });
       });
 
     return () => {
-      active = false;
+      running = false;
     };
-  }, [session, memberNonce]);
+  }, [session, profileNonce]);
 
-  const refreshMember = useCallback(() => setMemberNonce((n) => n + 1), []);
+  const refreshProfile = useCallback(() => setProfileNonce((n) => n + 1), []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -101,13 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setMember(null);
-    setMemberStatus('idle');
+    setLoaded(null);
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ session, member, memberStatus, loading, signIn, signOut, refreshMember }),
-    [session, member, memberStatus, loading, signIn, signOut, refreshMember],
+    () => ({ session, profile, profileStatus, loading, signIn, signOut, refreshProfile }),
+    [session, profile, profileStatus, loading, signIn, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

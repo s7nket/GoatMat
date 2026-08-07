@@ -18,19 +18,27 @@ import {
   StatCard,
   Text,
 } from '@/components/ui';
-import { useAuth } from '@/lib/auth';
 import { money, moneyShort, pieces, prettyDate } from '@/lib/format';
-import { type DashboardPeriod, PERIOD_LABELS, periodRange, useDashboard } from '@/lib/queries';
+import {
+  type DashboardPeriod,
+  PERIOD_LABELS,
+  periodRange,
+  useBusinessProfile,
+  useDashboard,
+} from '@/lib/queries';
 import { colors, radius, shadow, spacing } from '@/theme/tokens';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { member } = useAuth();
   const [period, setPeriod] = useState<DashboardPeriod>('today');
   const { data, isPending, isError, error, refetch, isRefetching } = useDashboard(period);
+  // Read through the query rather than the auth snapshot, which is taken once
+  // at sign-in -- otherwise the greeting keeps the old name until the app is
+  // restarted, however many times Settings is saved.
+  const { data: profile } = useBusinessProfile();
 
-  const firstName = member?.full_name?.split(' ')[0] ?? 'there';
+  const firstName = profile?.owner_name?.trim().split(/\s+/)[0] || 'there';
   const range = periodRange(period);
   const rangeLabel =
     range.from === range.to

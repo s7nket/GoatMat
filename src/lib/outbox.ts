@@ -27,6 +27,13 @@ export type JobStatus = 'queued' | 'failed';
 
 type JobMeta = {
   id: string;
+  /**
+   * Who queued it. Rows are stamped with `auth.uid()` by Postgres, so sending
+   * one account's queued bill while a different account is signed in would
+   * file it under the wrong business. The queue survives sign-out, so this is
+   * not hypothetical.
+   */
+  userId: string;
   createdAt: string;
   attempts: number;
   status: JobStatus;
@@ -97,8 +104,11 @@ function backoffFor(attempts: number): number {
   return Date.now() + delay * (0.5 + Math.random() * 0.5);
 }
 
-export function newJobMeta(): Pick<JobMeta, 'createdAt' | 'attempts' | 'status' | 'nextAttemptAt'> {
+export function newJobMeta(
+  userId: string,
+): Pick<JobMeta, 'userId' | 'createdAt' | 'attempts' | 'status' | 'nextAttemptAt'> {
   return {
+    userId,
     createdAt: new Date().toISOString(),
     attempts: 0,
     status: 'queued',
@@ -138,8 +148,15 @@ async function writeRaw(jobs: OutboxJob[]): Promise<void> {
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
 }
 
-export function getJobs(): Promise<OutboxJob[]> {
+/** Every job on the device, whoever queued it. */
+export function getAllJobs(): Promise<OutboxJob[]> {
   return serialise(readRaw);
+}
+
+/** Only the signed-in account's jobs. What the UI and the flusher act on. */
+export async function getJobs(userId: string | null): Promise<OutboxJob[]> {
+  if (!userId) return [];
+  return (await serialise(readRaw)).filter((job) => job.userId === userId);
 }
 
 export function enqueue(job: OutboxJob): Promise<OutboxJob[]> {
@@ -147,15 +164,15 @@ export function enqueue(job: OutboxJob): Promise<OutboxJob[]> {
     const jobs = await readRaw();
     const next = [...jobs, job];
     await writeRaw(next);
-    return next;
+    return next.filter((j) => j.userId === job.userId);
   });
 }
 
-export function removeJob(id: string): Promise<OutboxJob[]> {
+export function removeJob(id: string, userId: string | null): Promise<OutboxJob[]> {
   return serialise(async () => {
     const next = (await readRaw()).filter((job) => job.id !== id);
     await writeRaw(next);
-    return next;
+    return next.filter((job) => job.userId === userId);
   });
 }
 
@@ -167,7 +184,7 @@ async function patchJob(id: string, patch: Partial<JobMeta>): Promise<void> {
 }
 
 /** Puts a failed job back in line, from the top. */
-export function retryJob(id: string): Promise<OutboxJob[]> {
+export function retryJob(id: string, userId: string | null): Promise<OutboxJob[]> {
   return serialise(async () => {
     const next = (await readRaw()).map((job) =>
       job.id === id
@@ -175,7 +192,7 @@ export function retryJob(id: string): Promise<OutboxJob[]> {
         : job,
     );
     await writeRaw(next);
-    return next;
+    return next.filter((job) => job.userId === userId);
   });
 }
 
@@ -273,15 +290,18 @@ let flushing = false;
  * send on their own, and leaving one at the head of the queue would freeze
  * every bill behind it -- with no way out short of reinstalling the app.
  */
-export async function flush(): Promise<FlushResult> {
-  if (flushing) return { sent: 0, failed: 0, remaining: (await getJobs()).length };
+export async function flush(userId: string | null): Promise<FlushResult> {
+  if (!userId) return { sent: 0, failed: 0, remaining: 0 };
+  if (flushing) return { sent: 0, failed: 0, remaining: (await getJobs(userId)).length };
   flushing = true;
 
   let sent = 0;
   let failed = 0;
 
   try {
-    const jobs = await getJobs();
+    // Only this account's jobs. Another owner's queued bills stay untouched
+    // until they sign in again -- they are theirs to send, not ours.
+    const jobs = await getJobs(userId);
     const now = Date.now();
 
     for (const job of jobs) {
@@ -293,7 +313,7 @@ export async function flush(): Promise<FlushResult> {
 
       try {
         await send(job);
-        await removeJob(job.id);
+        await removeJob(job.id, userId);
         sent += 1;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not send.';
@@ -322,5 +342,5 @@ export async function flush(): Promise<FlushResult> {
     flushing = false;
   }
 
-  return { sent, failed, remaining: (await getJobs()).length };
+  return { sent, failed, remaining: (await getJobs(userId)).length };
 }

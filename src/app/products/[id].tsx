@@ -48,6 +48,7 @@ export default function ProductFormScreen() {
   // because the screen renders a loader until then.
   useEffect(() => {
     if (!product) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(product.name);
     setSize(product.size ?? '');
     setGsm(product.gsm ? String(product.gsm) : '');

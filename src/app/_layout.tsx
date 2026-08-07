@@ -5,9 +5,6 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -19,32 +16,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OfflineBanner } from '@/components/ui/offline-banner';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { OfflineProvider } from '@/lib/offline';
+import { persister, queryClient } from '@/lib/query-client';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Phone data plans are metered and the dataset is tiny -- refetch on focus
-      // is off, and screens pull-to-refresh when the user actually wants it.
-      refetchOnWindowFocus: false,
-      staleTime: 30_000,
-      retry: 1,
-      // Cached results must outlive the process, otherwise there is nothing to
-      // rehydrate at launch and the app is blank with no signal.
-      gcTime: 30 * 24 * 60 * 60 * 1000,
-    },
-  },
-});
-
-const persister = createAsyncStoragePersister({
-  storage: AsyncStorage,
-  key: 'goatmat.query-cache.v1',
-  // Writing the whole cache on every keystroke-driven refetch would thrash
-  // storage; a second of quiet is plenty.
-  throttleTime: 1000,
-});
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({

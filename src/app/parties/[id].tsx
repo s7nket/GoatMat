@@ -37,8 +37,11 @@ export default function PartyFormScreen() {
   const [notes, setNotes] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
+  // Hydrate the form once the row arrives. The fields are edited locally
+  // afterwards, so they cannot simply be derived from the query.
   useEffect(() => {
     if (!party) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setKind(party.kind);
     setName(party.name);
     setPhone(party.phone ?? '');

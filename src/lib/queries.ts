@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type {
-  BusinessProfile,
   Party,
   PartyBalanceRow,
   PartyKind,
   Product,
+  Profile,
   StockRow,
 } from '@/lib/database.types';
 import { toISODate } from '@/lib/format';
@@ -36,8 +36,9 @@ export function useBusinessProfile() {
     queryKey: keys.business,
     // Printed on every bill and changed maybe twice a year.
     staleTime: 10 * 60_000,
-    queryFn: async (): Promise<BusinessProfile | null> => {
-      const { data, error } = await supabase.from('business_profile').select('*').maybeSingle();
+    queryFn: async (): Promise<Profile | null> => {
+      // RLS restricts this to the caller's own row, so no filter is needed.
+      const { data, error } = await supabase.from('profiles').select('*').maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -251,7 +252,7 @@ export type BillListRow = {
   paid_amount: number;
   payment_mode: string | null;
   voided_at: string | null;
-  party: { name: string; phone: string | null } | null;
+  party: { name: string; phone: string | null; address: string | null } | null;
 };
 
 export type BillLine = {
@@ -270,7 +271,8 @@ export type BillDetail = BillListRow & {
 };
 
 const LIST_COLUMNS =
-  'id, bill_no, bill_date, total_amount, paid_amount, payment_mode, voided_at, party:parties(name, phone)';
+  'id, bill_no, bill_date, total_amount, paid_amount, payment_mode, voided_at, ' +
+  'party:parties(name, phone, address)';
 
 export function useSales() {
   return useQuery({
