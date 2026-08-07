@@ -28,9 +28,6 @@ type OfflineState = {
   sync: () => Promise<void>;
   retry: (id: string) => Promise<void>;
   discard: (id: string) => Promise<void>;
-  /** Dev-only switch so offline behaviour can be tested at a desk. */
-  simulateOffline: boolean;
-  setSimulateOffline: (value: boolean) => void;
 };
 
 const OfflineContext = createContext<OfflineState | null>(null);
@@ -38,8 +35,7 @@ const OfflineContext = createContext<OfflineState | null>(null);
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
-  const [reachable, setReachable] = useState(true);
-  const [simulateOffline, setSimulateOffline] = useState(false);
+  const [online, setOnline] = useState(true);
   const [jobs, setJobs] = useState<OutboxJob[]>([]);
   const [syncing, setSyncing] = useState(false);
 
@@ -49,7 +45,6 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const pending = useMemo(() => jobs.filter((job) => job.status !== 'failed'), [jobs]);
   const failed = useMemo(() => jobs.filter((job) => job.status === 'failed'), [jobs]);
 
-  const online = reachable && !simulateOffline;
   // Read inside callbacks without making them depend on it, so the sync
   // function stays stable across renders.
   const onlineRef = useRef(online);
@@ -82,8 +77,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = NetInfo.addEventListener((state) => {
       // `isInternetReachable` is null until the first probe finishes. Treating
       // that as offline would flash the banner on every cold start.
-      const next = state.isConnected !== false && state.isInternetReachable !== false;
-      setReachable(next);
+      setOnline(state.isConnected !== false && state.isInternetReachable !== false);
     });
     return unsubscribe;
   }, []);
@@ -157,10 +151,8 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       sync,
       retry,
       discard,
-      simulateOffline,
-      setSimulateOffline,
     }),
-    [online, pending, failed, syncing, queue, sync, retry, discard, simulateOffline],
+    [online, pending, failed, syncing, queue, sync, retry, discard],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

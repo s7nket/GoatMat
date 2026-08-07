@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Switch, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -42,8 +42,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { profile, session, signOut } = useAuth();
   const { data: business, isPending } = useBusinessProfile();
-  const { online, pending, failed, syncing, sync, retry, discard, simulateOffline, setSimulateOffline } =
-    useOffline();
+  const { online, pending, failed, syncing, sync, retry, discard } = useOffline();
   const save = useSaveBusinessProfile();
 
   const [name, setName] = useState('');
@@ -169,20 +168,6 @@ export default function SettingsScreen() {
                   }
                   chevron={false}
                 />
-                <RowDivider />
-                <View style={styles.switchRow}>
-                  <View style={styles.switchText}>
-                    <Text variant="bodyMedium">Test offline mode</Text>
-                    <Text variant="caption" tone="secondary">
-                      Pretend there is no signal, without turning off your data
-                    </Text>
-                  </View>
-                  <Switch
-                    value={simulateOffline}
-                    onValueChange={setSimulateOffline}
-                    trackColor={{ true: colors.primary }}
-                  />
-                </View>
               </Card>
 
               {pending.length > 0 && online ? (
@@ -286,14 +271,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  switchText: { flex: 1, gap: 1 },
   failedNote: { paddingHorizontal: spacing.xs, marginTop: -spacing.sm },
   failedRow: { padding: spacing.lg, gap: spacing.md },
   failedText: { gap: 2 },
