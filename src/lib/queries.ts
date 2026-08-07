@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import type {
   BusinessProfile,
@@ -9,6 +10,13 @@ import type {
   StockRow,
 } from '@/lib/database.types';
 import { toISODate } from '@/lib/format';
+import {
+  useOffline,
+  usePendingBalanceDelta,
+  usePendingParties,
+  usePendingProducts,
+  usePendingStockDelta,
+} from '@/lib/offline';
 import { supabase } from '@/lib/supabase';
 
 /** Every query key starts here so a single invalidate can clear a whole area. */
@@ -137,14 +145,64 @@ async function fetchDashboard(from: string, to: string): Promise<DashboardSummar
 
 export function useDashboard(period: DashboardPeriod) {
   const { from, to } = periodRange(period);
-  return useQuery({
+  const { pendingBills } = useOffline();
+  const stock = useStock();
+
+  const query = useQuery({
     queryKey: keys.dashboard(from, to),
     queryFn: () => fetchDashboard(from, to),
   });
+
+  // Home is the screen someone checks after a day in the field. If the day's
+  // bills are still queued, showing zero would read as lost work.
+  const data = useMemo((): DashboardSummary | undefined => {
+    if (!query.data) return undefined;
+
+    const inRange = pendingBills.filter(
+      (job) => job.payload.billDate >= from && job.payload.billDate <= to,
+    );
+
+    const sales = inRange.filter((job) => job.type === 'sale');
+    const purchases = inRange.filter((job) => job.type === 'purchase');
+    const sum = (jobs: typeof inRange) =>
+      jobs.reduce((acc, job) => acc + job.payload.totalAmount, 0);
+
+    const salesTotal = query.data.salesTotal + sum(sales);
+    const purchaseTotal = query.data.purchaseTotal + sum(purchases);
+
+    let receivable = query.data.receivable;
+    let payable = query.data.payable;
+    for (const job of pendingBills) {
+      const unpaid = job.payload.totalAmount - job.payload.paidAmount;
+      if (unpaid <= 0) continue;
+      if (job.type === 'sale') receivable += unpaid;
+      else payable += unpaid;
+    }
+
+    return {
+      ...query.data,
+      salesTotal,
+      salesCount: query.data.salesCount + sales.length,
+      purchaseTotal,
+      purchaseCount: query.data.purchaseCount + purchases.length,
+      grossMargin: salesTotal - purchaseTotal,
+      receivable,
+      payable,
+      // Low stock comes from useStock, which already folds the queue in.
+      lowStock: stock.data
+        .filter((row) => row.qty_left <= row.low_stock_at)
+        .sort((a, b) => a.qty_left - b.qty_left),
+    };
+  }, [query.data, pendingBills, from, to, stock.data]);
+
+  return { ...query, data };
 }
 
 export function useStock() {
-  return useQuery({
+  const delta = usePendingStockDelta();
+  const pendingProducts = usePendingProducts();
+
+  const query = useQuery({
     queryKey: keys.stock,
     queryFn: async (): Promise<StockRow[]> => {
       const { data, error } = await supabase.from('stock_view').select('*').order('name');
@@ -152,6 +210,36 @@ export function useStock() {
       return (data ?? []) as StockRow[];
     },
   });
+
+  // stock_view is a server view, so it is as old as the last sync. Folding the
+  // queue back in is what stops someone overselling stock they already sold
+  // an hour ago with no signal.
+  const data = useMemo(() => {
+    const rows: StockRow[] = (query.data ?? []).map((row) => {
+      const change = delta.get(row.id);
+      return change ? { ...row, qty_left: row.qty_left + change } : row;
+    });
+
+    const seen = new Set(rows.map((row) => row.id));
+    for (const product of pendingProducts) {
+      if (seen.has(product.id)) continue;
+      rows.push({
+        id: product.id,
+        name: product.name,
+        size: product.size,
+        gsm: product.gsm,
+        default_rate: product.default_rate,
+        low_stock_at: product.low_stock_at,
+        total_bought: 0,
+        total_sold: 0,
+        qty_left: delta.get(product.id) ?? 0,
+      });
+    }
+
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [query.data, delta, pendingProducts]);
+
+  return { ...query, data };
 }
 
 /** A bill row as the list screens need it: totals plus the party's name. */
@@ -380,7 +468,9 @@ export function useReport(from: string, to: string) {
 }
 
 export function useProducts() {
-  return useQuery({
+  const pendingProducts = usePendingProducts();
+
+  const query = useQuery({
     queryKey: keys.products,
     queryFn: async (): Promise<Product[]> => {
       const { data, error } = await supabase
@@ -392,6 +482,23 @@ export function useProducts() {
       return data ?? [];
     },
   });
+
+  // Unsent products are merged in by id rather than appended: once the queue
+  // drains, the server copy arrives and the local one must not double up.
+  const data = useMemo(() => mergeById(query.data ?? [], pendingProducts), [
+    query.data,
+    pendingProducts,
+  ]);
+
+  return { ...query, data };
+}
+
+function mergeById<T extends { id: string; name: string }>(server: T[], pending: T[]): T[] {
+  if (pending.length === 0) return server;
+  const seen = new Set(server.map((row) => row.id));
+  return [...server, ...pending.filter((row) => !seen.has(row.id))].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 }
 
 export function useProduct(id: string | undefined) {
@@ -412,7 +519,9 @@ export function useProduct(id: string | undefined) {
 }
 
 export function useParties(kind?: PartyKind) {
-  return useQuery({
+  const pendingParties = usePendingParties(kind);
+
+  const query = useQuery({
     queryKey: keys.parties(kind),
     queryFn: async (): Promise<Party[]> => {
       let q = supabase.from('parties').select('*').eq('archived', false).order('name');
@@ -422,6 +531,13 @@ export function useParties(kind?: PartyKind) {
       return data ?? [];
     },
   });
+
+  const data = useMemo(() => mergeById(query.data ?? [], pendingParties), [
+    query.data,
+    pendingParties,
+  ]);
+
+  return { ...query, data };
 }
 
 export function useParty(id: string | undefined) {
@@ -441,7 +557,10 @@ export function useParty(id: string | undefined) {
 }
 
 export function usePartyBalances(kind?: 'supplier' | 'customer') {
-  return useQuery({
+  const delta = usePendingBalanceDelta();
+  const pendingParties = usePendingParties(kind);
+
+  const query = useQuery({
     queryKey: [...keys.balances, kind ?? 'all'],
     queryFn: async (): Promise<PartyBalanceRow[]> => {
       let q = supabase.from('party_balance_view').select('*').order('name');
@@ -451,4 +570,31 @@ export function usePartyBalances(kind?: 'supplier' | 'customer') {
       return (data ?? []) as PartyBalanceRow[];
     },
   });
+
+  const data = useMemo(() => {
+    const rows: PartyBalanceRow[] = (query.data ?? []).map((row) => {
+      const change = delta.get(row.id);
+      return change ? { ...row, balance: Number(row.balance ?? 0) + change } : row;
+    });
+
+    const seen = new Set(rows.map((row) => row.id));
+    for (const party of pendingParties) {
+      if (seen.has(party.id)) continue;
+      rows.push({
+        id: party.id,
+        kind: party.kind,
+        name: party.name,
+        phone: party.phone,
+        total_billed: 0,
+        total_purchased: 0,
+        total_received: 0,
+        total_paid: 0,
+        balance: delta.get(party.id) ?? 0,
+      });
+    }
+
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [query.data, delta, pendingParties]);
+
+  return { ...query, data };
 }

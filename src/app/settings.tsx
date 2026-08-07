@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useSaveBusinessProfile } from '@/lib/mutations';
+import { useOffline } from '@/lib/offline';
 import { useBusinessProfile } from '@/lib/queries';
 import { colors, spacing } from '@/theme/tokens';
 
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { member, session, signOut } = useAuth();
   const { data: business, isPending } = useBusinessProfile();
+  const { online, pending, syncing, sync, simulateOffline, setSimulateOffline } = useOffline();
   const save = useSaveBusinessProfile();
 
   const [name, setName] = useState('');
@@ -125,6 +127,45 @@ export default function SettingsScreen() {
                 />
               </Card>
 
+              <SectionHeader title="Sync" />
+
+              <Card padded={false}>
+                <ListRow
+                  icon={online ? 'check-circle' : 'wifi-off'}
+                  title={online ? 'Connected' : 'Offline'}
+                  subtitle={
+                    pending.length === 0
+                      ? 'Everything has been sent'
+                      : `${pending.length} change${pending.length === 1 ? '' : 's'} waiting`
+                  }
+                  chevron={false}
+                />
+                <RowDivider />
+                <View style={styles.switchRow}>
+                  <View style={styles.switchText}>
+                    <Text variant="bodyMedium">Test offline mode</Text>
+                    <Text variant="caption" tone="secondary">
+                      Pretend there is no signal, without turning off your data
+                    </Text>
+                  </View>
+                  <Switch
+                    value={simulateOffline}
+                    onValueChange={setSimulateOffline}
+                    trackColor={{ true: colors.primary }}
+                  />
+                </View>
+              </Card>
+
+              {pending.length > 0 && online ? (
+                <Button
+                  label="Send now"
+                  variant="secondary"
+                  icon="upload-cloud"
+                  loading={syncing}
+                  onPress={sync}
+                />
+              ) : null}
+
               <SectionHeader title="Account" />
 
               <Card padded={false}>
@@ -178,6 +219,14 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  switchText: { flex: 1, gap: 1 },
   signOut: { gap: spacing.md, paddingHorizontal: spacing.xs },
   footer: {
     paddingHorizontal: spacing.lg,

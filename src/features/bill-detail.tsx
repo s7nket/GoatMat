@@ -17,6 +17,7 @@ import {
   Text,
 } from '@/components/ui';
 import { shareBillPdf } from '@/features/bill-pdf';
+import { useOffline } from '@/lib/offline';
 import { money, pieces, prettyDate } from '@/lib/format';
 import { useVoidBill } from '@/lib/mutations';
 import { useBill, useBusinessProfile } from '@/lib/queries';
@@ -34,11 +35,22 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
   const router = useRouter();
   const { data: bill, isPending, isError, error, refetch } = useBill(kind, id);
   const { data: business } = useBusinessProfile();
+  const { online } = useOffline();
   const voidBill = useVoidBill(kind);
   const [sharing, setSharing] = useState(false);
 
   async function handleShare() {
     if (!bill) return;
+    if (!online) {
+      // The PDF prints a bill number, and a queued bill has not been given one
+      // yet. Sending it now would put a bill with no number in a customer's
+      // hands, and a different number in the books later.
+      Alert.alert(
+        'Not available offline',
+        'The bill needs to reach the server before it can be sent, so it carries the right bill number.',
+      );
+      return;
+    }
     setSharing(true);
     try {
       await shareBillPdf({ kind, bill, business: business ?? null });
@@ -50,6 +62,14 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
   }
 
   function handleVoid() {
+    if (!online) {
+      Alert.alert(
+        'Not available offline',
+        'Voiding changes a bill the server already holds, so it needs a connection.',
+      );
+      return;
+    }
+
     Alert.alert(
       'Void this bill?',
       'The bill stays on record but stops counting towards stock, balances and reports. ' +

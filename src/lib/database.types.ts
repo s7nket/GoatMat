@@ -199,6 +199,7 @@ export type Database = {
       is_member: { Args: Record<string, never>; Returns: boolean };
       create_sale: {
         Args: {
+          p_id: string;
           p_customer_id: string;
           p_bill_date: string;
           p_payment_mode: PaymentMode | null;
@@ -210,6 +211,7 @@ export type Database = {
       };
       create_purchase: {
         Args: {
+          p_id: string;
           p_supplier_id: string;
           p_bill_date: string;
           p_supplier_ref: string | null;
@@ -217,6 +219,29 @@ export type Database = {
           p_paid_amount: number;
           p_notes: string | null;
           p_items: BillItemInput[];
+        };
+        Returns: string;
+      };
+      create_product: {
+        Args: {
+          p_id: string;
+          p_name: string;
+          p_size: string | null;
+          p_gsm: number | null;
+          p_default_rate: number | null;
+          p_low_stock_at: number;
+          p_notes: string | null;
+        };
+        Returns: string;
+      };
+      create_party: {
+        Args: {
+          p_id: string;
+          p_kind: PartyKind;
+          p_name: string;
+          p_phone: string | null;
+          p_address: string | null;
+          p_notes: string | null;
         };
         Returns: string;
       };

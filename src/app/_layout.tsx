@@ -5,15 +5,20 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useFonts } from 'expo-font';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { OfflineBanner } from '@/components/ui/offline-banner';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { OfflineProvider } from '@/lib/offline';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -26,8 +31,19 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 30_000,
       retry: 1,
+      // Cached results must outlive the process, otherwise there is nothing to
+      // rehydrate at launch and the app is blank with no signal.
+      gcTime: 30 * 24 * 60 * 60 * 1000,
     },
   },
+});
+
+const persister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'goatmat.query-cache.v1',
+  // Writing the whole cache on every keystroke-driven refetch would thrash
+  // storage; a second of quiet is plenty.
+  throttleTime: 1000,
 });
 
 export default function RootLayout() {
@@ -42,12 +58,23 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: 30 * 24 * 60 * 60 * 1000,
+          // Bump this and every phone drops its cache on next launch. Needed
+          // whenever a query's shape changes, so rehydrated data can never be
+          // read with the wrong assumptions.
+          buster: 'v1',
+        }}>
         <AuthProvider>
-          <StatusBar style="dark" />
-          <RootNavigator />
+          <OfflineProvider>
+            <StatusBar style="dark" />
+            <RootNavigator />
+          </OfflineProvider>
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }
@@ -64,25 +91,28 @@ function RootNavigator() {
   if (loading) return null;
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
-      }}>
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="products/index" />
-        <Stack.Screen name="products/[id]" />
-        <Stack.Screen name="parties/[id]" />
-        <Stack.Screen name="sales/[id]" />
-        <Stack.Screen name="purchases/[id]" />
-        <Stack.Screen name="settings" />
-        <Stack.Screen name="reports" />
-      </Stack.Protected>
+    <>
+      {session ? <OfflineBanner /> : null}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}>
+        <Stack.Protected guard={!!session}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="products/index" />
+          <Stack.Screen name="products/[id]" />
+          <Stack.Screen name="parties/[id]" />
+          <Stack.Screen name="sales/[id]" />
+          <Stack.Screen name="purchases/[id]" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="reports" />
+        </Stack.Protected>
 
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="sign-in" />
-      </Stack.Protected>
-    </Stack>
+        <Stack.Protected guard={!session}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
+      </Stack>
+    </>
   );
 }

@@ -144,9 +144,13 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     try {
       await createBill.mutateAsync({
         partyId: partyId!,
+        // Carried on the job so a queued bill can name its party without a
+        // lookup -- the party itself may also still be unsent.
+        partyName: partyName ?? 'Unknown',
         billDate: toISODate(billDate),
         paymentMode,
         paidAmount: paid,
+        totalAmount: total,
         notes: notes.trim() || null,
         supplierRef: isSale ? null : supplierRef.trim() || null,
         items: usable.map((line) => ({

@@ -18,6 +18,7 @@ import {
   Text,
 } from '@/components/ui';
 import { money, moneyShort, parseISODate, pieces, prettyDate, toISODate } from '@/lib/format';
+import { useOffline } from '@/lib/offline';
 import { useReport } from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
 
@@ -66,6 +67,7 @@ export default function ReportsScreen() {
   const [to, setTo] = useState(initial.to);
   const [picking, setPicking] = useState<'from' | 'to' | null>(null);
 
+  const { online } = useOffline();
   const { data, isPending, isError, error, refetch, isRefetching } = useReport(from, to);
 
   return (
@@ -116,7 +118,13 @@ export default function ReportsScreen() {
           />
         </View>
 
-        {isPending ? (
+        {!online && !data ? (
+          <EmptyState
+            icon="wifi-off"
+            title="Reports need a connection"
+            message="A report reaches back over months of bills, most of which are not saved on this phone. Home still works offline."
+          />
+        ) : isPending ? (
           <LoadingState label="Adding it up" />
         ) : isError ? (
           <ErrorState
