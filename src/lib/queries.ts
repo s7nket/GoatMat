@@ -2,11 +2,11 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type {
-  BusinessProfile,
   Party,
   PartyBalanceRow,
   PartyKind,
   Product,
+  Profile,
   StockRow,
 } from '@/lib/database.types';
 import { toISODate } from '@/lib/format';
@@ -36,8 +36,9 @@ export function useBusinessProfile() {
     queryKey: keys.business,
     // Printed on every bill and changed maybe twice a year.
     staleTime: 10 * 60_000,
-    queryFn: async (): Promise<BusinessProfile | null> => {
-      const { data, error } = await supabase.from('business_profile').select('*').maybeSingle();
+    queryFn: async (): Promise<Profile | null> => {
+      // RLS restricts this to the caller's own row, so no filter is needed.
+      const { data, error } = await supabase.from('profiles').select('*').maybeSingle();
       if (error) throw error;
       return data;
     },

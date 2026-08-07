@@ -2,7 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-import type { BusinessProfile } from '@/lib/database.types';
+import type { Profile } from '@/lib/database.types';
 import { money, prettyDate } from '@/lib/format';
 import type { BillDetail } from '@/lib/queries';
 
@@ -62,7 +62,7 @@ export function buildBillHtml({
 }: {
   kind: 'sale' | 'purchase';
   bill: BillDetail;
-  business: BusinessProfile | null;
+  business: Profile | null;
 }): string {
   const isSale = kind === 'sale';
   const balance = Number(bill.total_amount) - Number(bill.paid_amount);
@@ -272,7 +272,7 @@ export function buildBillHtml({
 export async function shareBillPdf(args: {
   kind: 'sale' | 'purchase';
   bill: BillDetail;
-  business: BusinessProfile | null;
+  business: Profile | null;
 }): Promise<void> {
   // The file expo-print produces cannot be handed to the share sheet, and
   // cannot even be read back to copy it -- it lands in a scoped cache

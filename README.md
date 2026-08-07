@@ -66,15 +66,16 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
    yet, in order — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
    [`003_bill_entry.sql`](supabase/003_bill_entry.sql),
    [`004_business_profile.sql`](supabase/004_business_profile.sql),
-   [`005_idempotent_bills.sql`](supabase/005_idempotent_bills.sql).
+   [`005_idempotent_bills.sql`](supabase/005_idempotent_bills.sql),
+   [`006_multi_tenant.sql`](supabase/006_multi_tenant.sql).
    Run them in order. All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.
 4. **Authentication → Users → Add user** for each person. Confirm the email.
 
-That is the whole flow. A trigger creates the matching `members` row on every
-new auth user, so there is no UUID to copy and no SQL to run per person. The
-first user created becomes `owner`; everyone after is `staff`.
+That is the whole flow. A trigger creates each new user's profile, so there is
+no UUID to copy and no SQL to run per person. Every account starts with its own
+empty set of books.
 
 ### 3. Local env
 
@@ -123,6 +124,19 @@ src/
 supabase/schema.sql     run this in Supabase Studio
 ```
 
+## One business per user
+
+Each account is its own tenant. Every row carries an `owner_id`, defaulted by
+Postgres to `auth.uid()` — the app never sends it, so a client bug cannot write
+into someone else's books. RLS is `owner_id = auth.uid() and is_active()`.
+
+There are no staff and no shared data. Two accounts cannot see each other's
+products, customers, stock or bills, and bill numbers run 1, 2, 3 within each
+business rather than interleaving across all of them.
+
+Sign-ups stay **disabled**. Accounts are created by hand in Supabase Studio;
+a trigger gives each new user their own profile.
+
 ## Managing people
 
 Everything happens in Supabase Studio — the app has no admin screen and needs
@@ -130,17 +144,18 @@ no redeploy.
 
 | To do this | Go here |
 |---|---|
-| Add someone | **Authentication → Users → Add user**. Their membership row appears automatically. |
+| Add an owner | **Authentication → Users → Add user**. Their profile and empty books appear automatically. |
 | Set their display name | On the same dialog, add `full_name` to user metadata. Otherwise it is derived from the email. |
-| Revoke access | **Table Editor → members**, set `active` to `false`. |
+| Revoke access | **Table Editor → profiles**, set `active` to `false`. |
 | Restore access | Set `active` back to `true`. |
-| Remove permanently | Delete the auth user. The membership row cascades away. |
+| Remove permanently | Delete the auth user. This **fails** while they still have bills — `owner_id` references them and nothing cascades, on purpose. |
 
-Revoking beats deleting: `active = false` cuts every read and write instantly
-while their name stays attached to the bills they entered. Deleting a user who
-already recorded sales leaves those bills with a dangling `created_by`.
+Revoking beats deleting. `active = false` cuts every read and write instantly
+but leaves the data intact, so it can be turned back on. Deletion is blocked by
+the foreign key precisely so a business cannot be destroyed with one click in a
+table editor.
 
-The change takes effect on their next request — no need to touch their phone.
+Either takes effect on their next request — no need to touch their phone.
 
 ## Offline
 

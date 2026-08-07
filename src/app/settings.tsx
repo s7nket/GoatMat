@@ -40,7 +40,7 @@ function describeJob(job: OutboxJob): string {
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { member, session, signOut } = useAuth();
+  const { profile, session, signOut } = useAuth();
   const { data: business, isPending } = useBusinessProfile();
   const { online, pending, failed, syncing, sync, retry, discard, simulateOffline, setSimulateOffline } =
     useOffline();
@@ -246,23 +246,15 @@ export default function SettingsScreen() {
               <Card padded={false}>
                 <ListRow
                   icon="user"
-                  title={member?.full_name ?? 'Member'}
+                  title={profile?.owner_name ?? 'Owner'}
                   subtitle={session?.user.email ?? undefined}
-                  chevron={false}
-                />
-                <RowDivider />
-                <ListRow
-                  icon="shield"
-                  title="Role"
-                  subtitle={member?.role === 'owner' ? 'Owner' : 'Staff'}
                   chevron={false}
                 />
               </Card>
 
               <View style={styles.signOut}>
                 <Text variant="caption" tone="muted">
-                  Access is managed in Supabase. Removing someone there cuts them off everywhere,
-                  without touching their phone.
+                  Your books are yours alone — no other account can see or change them.
                 </Text>
                 <Button
                   label="Sign out"

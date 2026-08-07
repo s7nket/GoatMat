@@ -39,9 +39,9 @@ export function useSaveBusinessProfile() {
 
   return useMutation({
     mutationFn: async (input: BusinessProfileInput) => {
-      // The row is seeded by the migration, so this is always an update of the
-      // single id = true row.
-      const { error } = await supabase.from('business_profile').update(input).eq('id', true);
+      // A trigger creates the row when the account is made, and RLS limits the
+      // update to the caller's own, so no id is needed here.
+      const { error } = await supabase.from('profiles').update(input).not('user_id', 'is', null);
       if (error) throw error;
     },
     onSuccess: () => client.invalidateQueries({ queryKey: keys.business }),

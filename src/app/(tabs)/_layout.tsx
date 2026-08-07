@@ -7,15 +7,15 @@ import { useAuth } from '@/lib/auth';
 import { colors, fontFamily, spacing } from '@/theme/tokens';
 
 export default function TabsLayout() {
-  const { memberStatus, session, signOut, refreshMember } = useAuth();
+  const { profileStatus, session, signOut, refreshProfile } = useAuth();
 
-  // Signed in, but no readable membership row -- either the account was never
-  // activated or it has been switched off. RLS denies every query in that
-  // state, so say so plainly instead of showing five empty screens.
+  // Signed in, but the profile is missing or switched off. RLS denies every
+  // query in that state, so say so plainly instead of showing five empty
+  // screens.
   //
   // A failed request is a separate case on purpose: a dead signal must never
   // read as "you have no access".
-  if (memberStatus === 'checking') {
+  if (profileStatus === 'checking') {
     return (
       <Screen>
         <LoadingState label="Checking access" />
@@ -23,16 +23,16 @@ export default function TabsLayout() {
     );
   }
 
-  if (memberStatus === 'denied') {
+  if (profileStatus === 'denied') {
     return <NoAccessScreen onSignOut={signOut} email={session?.user.email} />;
   }
 
-  if (memberStatus === 'error') {
+  if (profileStatus === 'error') {
     return (
       <Screen>
         <ErrorState
           message="Could not confirm your access. Check the connection and try again."
-          onRetry={refreshMember}
+          onRetry={refreshProfile}
         />
       </Screen>
     );
@@ -104,7 +104,7 @@ function NoAccessScreen({ email, onSignOut }: { email?: string; onSignOut: () =>
         </Text>
         <Text variant="body" tone="secondary" center>
           {email ? `${email} signed in, but this account ` : 'This account '}
-          is not active for this business. Ask the owner to enable it, then sign in again.
+          has been switched off. Contact whoever set up the app for you.
         </Text>
         <Button label="Sign out" variant="secondary" icon="log-out" onPress={onSignOut} />
       </View>
