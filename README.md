@@ -19,7 +19,36 @@ handed out directly.
 | 4 | Offline outbox + sync | next |
 | 5 | Date-range reports | **done** |
 | 6 | Payments / udhaar ledger | |
-| 7 | EAS build + GitHub Release | |
+| 7 | EAS build + GitHub Release | **done** — [v1.0.0](https://github.com/s7nket/GoatMat/releases/latest) |
+
+Phases 4 and 6 are JavaScript only, so they ship as over-the-air updates —
+no reinstall.
+
+## Releasing
+
+```bash
+npx eas-cli@latest build --platform android --profile production
+```
+
+Produces a universal APK (~104 MB). Download it, rename it `GoatMat-vX.Y.Z.apk`,
+and attach it to a GitHub release tagged from `main`.
+
+Needed only when something native changes — a new library, the icon, a
+permission, or the version in `app.json`. Everything else goes out as:
+
+```bash
+npx eas-cli@latest update --branch production --message "what changed"
+```
+
+Installed apps pick that up on next launch. `runtimeVersion` follows
+`app.json`'s `version`, so an update can never reach a binary too old to run
+it — bump the version and you owe everyone a new APK.
+
+Build secrets live in EAS, not in the repo. After changing `.env`:
+
+```bash
+npx eas-cli@latest env:push --path .env --environment production
+```
 
 ## First-time setup
 
