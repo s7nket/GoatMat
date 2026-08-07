@@ -134,23 +134,20 @@ export function buildBillHtml({
     <style>
       /* Self-contained: no web fonts, no remote assets. The PDF has to render
          identically on a phone with no signal. */
-      @page { size: A4; margin: 0; }
+      /* The page margin belongs here, not on the body. Giving the body an
+         explicit mm width inside a page that is already A4 makes the renderer
+         scale the whole document down to fit -- which is what made the text
+         small and left the page half empty. */
+      @page { size: A4; margin: 14mm; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        /* A4 at 96dpi. Fixed height so the signature block sits at the foot of
-           the page rather than floating under a short item list. */
-        width: 210mm;
-        min-height: 297mm;
-        padding: 16mm 14mm;
-        display: flex;
-        flex-direction: column;
+        padding: 0;
         font-family: -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
         color: #0F1720;
-        font-size: 12px;
-        line-height: 1.5;
+        font-size: 15px;
+        line-height: 1.55;
       }
-      .sheet { flex: 1; }
       .head {
         display: flex;
         justify-content: space-between;
@@ -159,51 +156,52 @@ export function buildBillHtml({
         padding-bottom: 16px;
         border-bottom: 2px solid #137A4C;
       }
-      .business { font-size: 20px; font-weight: 700; color: #0A3D26; letter-spacing: -0.3px; }
-      .muted { color: #64748B; font-size: 11px; }
+      .business { font-size: 26px; font-weight: 700; color: #0A3D26; letter-spacing: -0.4px; }
+      .muted { color: #64748B; font-size: 13px; }
       .doc-type {
         text-align: right;
-        font-size: 11px;
+        font-size: 12px;
         text-transform: uppercase;
         letter-spacing: 1px;
         color: #64748B;
       }
-      .bill-no { font-size: 18px; font-weight: 700; }
+      .bill-no { font-size: 22px; font-weight: 700; color: #0F1720; }
       .parties { display: flex; justify-content: space-between; gap: 24px; margin: 20px 0 16px; }
       .label {
-        font-size: 10px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.8px;
         color: #94A3B8;
         margin-bottom: 2px;
       }
-      .party-name { font-weight: 600; font-size: 14px; }
+      .party-name { font-weight: 600; font-size: 17px; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
       thead th {
         text-align: left;
-        font-size: 10px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.6px;
         color: #64748B;
-        border-bottom: 1px solid #CBD5E1;
-        padding: 8px 6px;
+        border-bottom: 1.5px solid #94A3B8;
+        padding: 10px 8px;
       }
-      tbody td { padding: 10px 6px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+      tbody td { padding: 12px 8px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
       .num { text-align: right; white-space: nowrap; }
       thead th.num { text-align: right; }
       .name { font-weight: 500; }
       .strong { font-weight: 600; }
-      .totals { margin-top: 18px; display: flex; justify-content: flex-end; }
-      .totals table { width: 260px; }
-      .totals td { padding: 6px 0; border: none; }
+      .totals { margin-top: 20px; display: flex; justify-content: flex-end; }
+      .totals table { width: 320px; }
+      .totals td { padding: 7px 0; border: none; font-size: 15px; }
       .totals .grand td {
-        border-top: 1px solid #CBD5E1;
-        padding-top: 10px;
-        font-size: 16px;
+        border-top: 1.5px solid #94A3B8;
+        border-bottom: 1.5px solid #94A3B8;
+        padding: 12px 0;
+        font-size: 20px;
         font-weight: 700;
       }
-      .due { color: #DC2626; font-weight: 600; }
-      .settled { color: #137A4C; font-weight: 600; }
+      .due { color: #DC2626; font-weight: 700; }
+      .settled { color: #137A4C; font-weight: 700; }
       .voided {
         margin: 16px 0;
         padding: 10px 12px;
@@ -213,33 +211,33 @@ export function buildBillHtml({
         border-radius: 6px;
       }
       .words {
-        margin-top: 14px;
-        padding: 10px 12px;
+        margin-top: 18px;
+        padding: 12px 14px;
         background: #F1F5F9;
         border-radius: 4px;
       }
-      .notes { margin-top: 16px; }
+      .notes { margin-top: 18px; }
       .foot {
-        margin-top: 28px;
-        padding-top: 14px;
+        margin-top: 48px;
+        padding-top: 16px;
         border-top: 1px solid #E2E8F0;
         display: flex;
         justify-content: space-between;
         align-items: flex-end;
         gap: 24px;
         color: #64748B;
-        font-size: 11px;
+        font-size: 13px;
       }
       .sign {
         text-align: center;
-        min-width: 180px;
-        padding-top: 34px;
-        border-top: 1px solid #CBD5E1;
+        min-width: 200px;
+        padding-top: 44px;
+        border-top: 1px solid #94A3B8;
+        color: #0F1720;
       }
     </style>
   </head>
   <body>
-    <div class="sheet">
     <div class="head">
       <div>
         <div class="business">${escapeHtml(business?.business_name || 'GoatMat')}</div>
@@ -320,7 +318,6 @@ export function buildBillHtml({
            </div>`
         : ''
     }
-    </div>
 
     <div class="foot">
       <div>${escapeHtml(business?.bill_footer || 'Thank you for your business.')}</div>
