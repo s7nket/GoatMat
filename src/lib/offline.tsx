@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
+import { useAuth } from '@/lib/auth';
 import type { Party, PartyKind, Product } from '@/lib/database.types';
 import {
   enqueue,
@@ -15,7 +16,9 @@ import {
 } from '@/lib/outbox';
 
 type OfflineState = {
-  /** False when the device has no usable connection, or the dev switch is on. */
+  /** The signed-in account. Every queued job is stamped with it. */
+  userId: string | null;
+  /** False when the device has no usable connection. */
   online: boolean;
   /** Jobs still expected to send. Excludes anything given up on. */
   pending: OutboxJob[];
@@ -34,10 +37,17 @@ const OfflineContext = createContext<OfflineState | null>(null);
 
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
+  const userId = session?.user.id ?? null;
 
   const [online, setOnline] = useState(true);
   const [jobs, setJobs] = useState<OutboxJob[]>([]);
   const [syncing, setSyncing] = useState(false);
+
+  const userRef = useRef(userId);
+  useEffect(() => {
+    userRef.current = userId;
+  }, [userId]);
 
   // A failed job is no longer on its way anywhere, so it must not be counted
   // as pending or folded into stock and balances -- doing so would show the
@@ -55,15 +65,15 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   }, [online]);
 
   const refreshPending = useCallback(async () => {
-    setJobs(await getJobs());
+    setJobs(await getJobs(userRef.current));
   }, []);
 
   const sync = useCallback(async () => {
-    if (!onlineRef.current) return;
+    if (!onlineRef.current || !userRef.current) return;
 
     setSyncing(true);
     try {
-      const result = await flush();
+      const result = await flush(userRef.current);
       await refreshPending();
       // Only disturb the screens if something actually landed.
       if (result.sent > 0) await queryClient.invalidateQueries();
@@ -72,11 +82,11 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient, refreshPending]);
 
-  // Load anything left over from a previous run before doing anything else.
+  // Load this account's leftovers, and reload whenever the account changes so
+  // one owner never sees another's queue.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refreshPending();
-  }, [refreshPending]);
+    void refreshPending();
+  }, [refreshPending, userId]);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -91,8 +101,8 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   // the app -- a phone that regained signal while backgrounded may not fire a
   // NetInfo event we are awake for.
   useEffect(() => {
-    if (online) void sync();
-  }, [online, sync]);
+    if (online && userId) void sync();
+  }, [online, userId, sync]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
@@ -129,7 +139,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const retry = useCallback(
     async (id: string) => {
-      setJobs(await retryJob(id));
+      setJobs(await retryJob(id, userRef.current));
       if (onlineRef.current) void sync();
     },
     [sync],
@@ -137,7 +147,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const discard = useCallback(
     async (id: string) => {
-      setJobs(await removeJob(id));
+      setJobs(await removeJob(id, userRef.current));
       await queryClient.invalidateQueries();
     },
     [queryClient],
@@ -145,6 +155,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<OfflineState>(
     () => ({
+      userId,
       online,
       pending,
       pendingBills: pending.filter(
@@ -157,7 +168,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       retry,
       discard,
     }),
-    [online, pending, failed, syncing, queue, sync, retry, discard],
+    [userId, online, pending, failed, syncing, queue, sync, retry, discard],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

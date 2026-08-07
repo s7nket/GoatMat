@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import type { Profile } from '@/lib/database.types';
+import { resetCacheOnUserChange } from '@/lib/query-client';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -70,6 +71,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // A profile is readable by its owner regardless of `active`, so being turned
   // off is a value on the row and not an empty result -- which keeps it
   // distinct from a request that simply failed.
+  // Drop a cache belonging to a different account before anything reads it.
+  // Runs on sign-in, sign-out and cold start alike, so a persisted cache from
+  // a previous session can never be shown to the wrong owner.
+  useEffect(() => {
+    if (loading) return;
+    void resetCacheOnUserChange(session?.user.id ?? null);
+  }, [session, loading]);
+
   useEffect(() => {
     if (!session) return;
     let running = true;

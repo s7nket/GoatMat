@@ -71,16 +71,20 @@ export type BillInput = {
  * a retry safe. See supabase/005_idempotent_bills.sql.
  */
 export function useCreateBill(kind: 'sale' | 'purchase') {
-  const { queue } = useOffline();
+  const { queue, userId } = useOffline();
 
   return useMutation({
     mutationFn: async (input: BillInput): Promise<string> => {
+      // A job with no owner could be flushed under whoever signs in next.
+      // The screens are behind the auth gate, so this should be unreachable.
+      if (!userId) throw new Error('Sign in before saving.');
+
       const id = newId();
 
       await queue({
         id,
         type: kind,
-        ...newJobMeta(),
+        ...newJobMeta(userId),
         payload: {
           partyId: input.partyId,
           partyName: input.partyName,
@@ -137,7 +141,7 @@ export type ProductInput = {
  */
 export function useSaveProduct() {
   const invalidate = useInvalidateAll();
-  const { queue } = useOffline();
+  const { queue, userId } = useOffline();
 
   return useMutation({
     mutationFn: async (input: ProductInput): Promise<string> => {
@@ -149,11 +153,13 @@ export function useSaveProduct() {
         return id;
       }
 
+      if (!userId) throw new Error('Sign in before saving.');
+
       const newProductId = newId();
       await queue({
         id: newProductId,
         type: 'product',
-        ...newJobMeta(),
+        ...newJobMeta(userId),
         payload: fields,
       });
       return newProductId;
@@ -189,7 +195,7 @@ export type PartyInput = {
 
 export function useSaveParty() {
   const invalidate = useInvalidateAll();
-  const { queue } = useOffline();
+  const { queue, userId } = useOffline();
 
   return useMutation({
     mutationFn: async (input: PartyInput): Promise<string> => {
@@ -201,11 +207,13 @@ export function useSaveParty() {
         return id;
       }
 
+      if (!userId) throw new Error('Sign in before saving.');
+
       const newPartyId = newId();
       await queue({
         id: newPartyId,
         type: 'party',
-        ...newJobMeta(),
+        ...newJobMeta(userId),
         payload: fields,
       });
       return newPartyId;
