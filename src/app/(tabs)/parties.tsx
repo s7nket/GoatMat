@@ -36,7 +36,7 @@ export default function PartiesScreen() {
       refreshing={isRefetching}>
       <PageHeader
         title="Parties"
-        subtitle="Who owes what"
+        subtitle="Customers and suppliers"
         right={
           <Button
             label="Add"

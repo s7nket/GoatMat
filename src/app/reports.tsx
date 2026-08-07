@@ -122,7 +122,7 @@ export default function ReportsScreen() {
           <EmptyState
             icon="wifi-off"
             title="Reports need a connection"
-            message="A report reaches back over months of bills, most of which are not saved on this phone. Home still works offline."
+            message="Reports cover months of bills, so they need a connection. Your dashboard still works offline."
           />
         ) : isPending ? (
           <LoadingState label="Adding it up" />

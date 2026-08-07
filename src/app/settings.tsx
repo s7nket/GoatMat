@@ -102,7 +102,7 @@ export default function SettingsScreen() {
 
   return (
     <Screen>
-      <FormHeader title="Settings" subtitle="Bill header and account" />
+      <FormHeader title="Settings" subtitle="Business details and account" />
 
       <KeyboardAvoidingView
         style={styles.flex}

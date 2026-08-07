@@ -47,6 +47,42 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes.subarray(0, out);
 }
 
+const ONES = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+  'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen',
+  'Nineteen',
+];
+const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function twoDigits(n: number): string {
+  if (n < 20) return ONES[n];
+  return (TENS[Math.floor(n / 10)] + ' ' + ONES[n % 10]).trim();
+}
+
+/**
+ * Amount in words, in the lakh/crore grouping every Indian bill uses. Customers
+ * expect it, and it is what stops a figure being altered after the fact.
+ */
+function rupeesInWords(value: number): string {
+  const total = Math.round(Math.abs(value));
+  if (total === 0) return 'Zero Rupees Only';
+
+  const parts: string[] = [];
+  const crore = Math.floor(total / 1_00_00_000);
+  const lakh = Math.floor((total % 1_00_00_000) / 1_00_000);
+  const thousand = Math.floor((total % 1_00_000) / 1000);
+  const hundred = Math.floor((total % 1000) / 100);
+  const rest = total % 100;
+
+  if (crore) parts.push(`${twoDigits(crore)} Crore`);
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+  if (hundred) parts.push(`${ONES[hundred]} Hundred`);
+  if (rest) parts.push(twoDigits(rest));
+
+  return `${parts.join(' ')} Rupees Only`;
+}
+
 function fileNameFor(kind: 'sale' | 'purchase', bill: BillDetail): string {
   const party = (bill.party?.name ?? 'party')
     .replace(/[^a-z0-9]+/gi, '-')
@@ -98,15 +134,23 @@ export function buildBillHtml({
     <style>
       /* Self-contained: no web fonts, no remote assets. The PDF has to render
          identically on a phone with no signal. */
+      @page { size: A4; margin: 0; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        padding: 32px 28px;
+        /* A4 at 96dpi. Fixed height so the signature block sits at the foot of
+           the page rather than floating under a short item list. */
+        width: 210mm;
+        min-height: 297mm;
+        padding: 16mm 14mm;
+        display: flex;
+        flex-direction: column;
         font-family: -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
         color: #0F1720;
-        font-size: 13px;
+        font-size: 12px;
         line-height: 1.5;
       }
+      .sheet { flex: 1; }
       .head {
         display: flex;
         justify-content: space-between;
@@ -168,28 +212,42 @@ export function buildBillHtml({
         font-weight: 600;
         border-radius: 6px;
       }
-      .notes { margin-top: 20px; }
+      .words {
+        margin-top: 14px;
+        padding: 10px 12px;
+        background: #F1F5F9;
+        border-radius: 4px;
+      }
+      .notes { margin-top: 16px; }
       .foot {
-        margin-top: 32px;
-        padding-top: 12px;
+        margin-top: 28px;
+        padding-top: 14px;
         border-top: 1px solid #E2E8F0;
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        align-items: flex-end;
+        gap: 24px;
         color: #64748B;
         font-size: 11px;
+      }
+      .sign {
+        text-align: center;
+        min-width: 180px;
+        padding-top: 34px;
+        border-top: 1px solid #CBD5E1;
       }
     </style>
   </head>
   <body>
+    <div class="sheet">
     <div class="head">
       <div>
         <div class="business">${escapeHtml(business?.business_name || 'GoatMat')}</div>
         ${contactLine ? `<div class="muted">${contactLine}</div>` : ''}
       </div>
       <div class="doc-type">
-        ${isSale ? 'Bill' : 'Purchase record'}
-        <div class="bill-no">#${bill.bill_no}</div>
+        ${isSale ? 'Invoice' : 'Purchase record'}
+        <div class="bill-no">No. ${bill.bill_no}</div>
         <div class="muted">${escapeHtml(prettyDate(bill.bill_date))}</div>
       </div>
     </div>
@@ -201,6 +259,7 @@ export function buildBillHtml({
         <div class="label">${isSale ? 'Billed to' : 'Bought from'}</div>
         <div class="party-name">${escapeHtml(bill.party?.name ?? '—')}</div>
         ${bill.party?.phone ? `<div class="muted">${escapeHtml(bill.party.phone)}</div>` : ''}
+        ${bill.party?.address ? `<div class="muted">${escapeHtml(bill.party.address)}</div>` : ''}
       </div>
       ${
         bill.supplier_ref
@@ -231,6 +290,10 @@ export function buildBillHtml({
           <td class="muted">Total pieces</td>
           <td class="num">${totalPieces}</td>
         </tr>
+        <tr class="grand">
+          <td>Total</td>
+          <td class="num">${money(bill.total_amount, { decimals: true })}</td>
+        </tr>
         <tr>
           <td class="muted">Paid</td>
           <td class="num">${money(bill.paid_amount, { decimals: true })}</td>
@@ -241,25 +304,29 @@ export function buildBillHtml({
             ${balance > 0 ? money(balance, { decimals: true }) : 'Settled'}
           </td>
         </tr>
-        <tr class="grand">
-          <td>Total</td>
-          <td class="num">${money(bill.total_amount, { decimals: true })}</td>
-        </tr>
       </table>
+    </div>
+
+    <div class="words">
+      <span class="label">Amount in words</span>
+      <div class="strong">${escapeHtml(rupeesInWords(Number(bill.total_amount)))}</div>
     </div>
 
     ${
       bill.notes
         ? `<div class="notes">
-             <div class="label">Notes</div>
+             <div class="label">Note</div>
              <div>${escapeHtml(bill.notes)}</div>
            </div>`
         : ''
     }
+    </div>
 
     <div class="foot">
       <div>${escapeHtml(business?.bill_footer || 'Thank you for your business.')}</div>
-      <div>${escapeHtml(business?.owner_name ?? '')}</div>
+      <div class="sign">
+        For ${escapeHtml(business?.business_name || 'GoatMat')}
+      </div>
     </div>
   </body>
 </html>`;
@@ -282,6 +349,10 @@ export async function shareBillPdf(args: {
   const { base64 } = await Print.printToFileAsync({
     html: buildBillHtml(args),
     base64: true,
+    // A4 in points (72dpi): 210mm x 297mm. Without this the page is US Letter,
+    // which is what every printer and phone in India is not set up for.
+    width: 595,
+    height: 842,
   });
 
   if (!base64) throw new Error('The PDF came back empty.');

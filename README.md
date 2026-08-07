@@ -1,211 +1,84 @@
+<div align="center">
+
 # GoatMat
 
-Private Android app for running the goat-mat trading business: purchases, sales,
-stock, party balances and reports. Not published to any store — the APK is
-handed out directly.
+**Run your trading business from your phone.**
 
-- **App:** Expo SDK 57 / React Native 0.86 / expo-router / TypeScript
-- **Data:** Supabase (hosted Postgres) with Row Level Security
-- **Distribution:** EAS Build → `.apk` → GitHub Releases → sideload
+Purchases, sales, stock and udhaar — in one place, working with or without signal.
 
-## Status
+[Download the latest APK](https://github.com/s7nket/GoatMat/releases/latest)
 
-| Phase | Scope | State |
-|---|---|---|
-| 0 | Project setup, design system, database schema, auth, tab shell | **done** |
-| 1 | Products, suppliers, customers CRUD | **done** |
-| 2 | Purchase + sale entry, live stock | **done** |
-| 3 | PDF kaccha bill, WhatsApp share | **done** |
-| 4 | Offline outbox + sync | **done** |
-| 5 | Date-range reports | **done** |
-| 6 | Payments / udhaar ledger | |
-| 7 | EAS build + GitHub Release | **done** — [v1.0.0](https://github.com/s7nket/GoatMat/releases/latest) |
+</div>
 
-Phases 4 and 6 are JavaScript only, so they ship as over-the-air updates —
-no reinstall.
+---
 
-## Releasing
+## What it is
 
-```bash
-npx eas-cli@latest build --platform android --profile production
-```
+GoatMat is an Android app for small traders who still run their books in a
+notebook. It was built for a goat-mat business — ground sheeting that keeps
+livestock dry through the monsoon — and it handles the parts of that trade a
+notebook handles badly: what is in stock right now, who still owes money, and
+what a customer was actually charged three months ago.
 
-Produces a universal APK (~104 MB). Download it, rename it `GoatMat-vX.Y.Z.apk`,
-and attach it to a GitHub release tagged from `main`.
+Every owner gets their own private books. No one else can see them.
 
-Needed only when something native changes — a new library, the icon, a
-permission, or the version in `app.json`. Everything else goes out as:
+## What it does
 
-```bash
-npx eas-cli@latest update --branch production --message "what changed"
-```
+**Record what you buy and sell.** Pick the party, add the mats by piece, save.
+Bills take a few taps, not a page.
 
-Installed apps pick that up on next launch. `runtimeVersion` follows
-`app.json`'s `version`, so an update can never reach a binary too old to run
-it — bump the version and you owe everyone a new APK.
+**Stock counts itself.** Your stock is what you bought minus what you sold —
+worked out from your own bills, never typed in, so it cannot quietly drift away
+from reality. Set a threshold on any product and the app warns you before you
+run out.
 
-Build secrets live in EAS, not in the repo. After changing `.env`:
+**Know who owes what.** Sell on udhaar and the balance is waiting on the
+Parties screen. Every customer and supplier shows what is outstanding, in which
+direction.
 
-```bash
-npx eas-cli@latest env:push --path .env --environment production
-```
+**Send a proper bill.** Generate an A4 invoice with your business name, the
+items, the total in words, and the balance due — then send it on WhatsApp.
+Customers get a document, not a photo of a page.
 
-## First-time setup
+**See how the business is doing.** The dashboard covers today, yesterday, the
+last week or the month. Reports go back as far as you like, with per-product
+movement and your best customers.
 
-### 1. Node
+**Works with no signal.** Enter a sale in the middle of a field with no bars.
+It saves on your phone, stock and balances update straight away, and everything
+syncs the moment you have a connection. Nothing is lost and nothing is entered
+twice.
 
-React Native 0.86 requires Node `^20.19.4 || ^22.13.0 || ^24.3.0`. Anything
-older prints `EBADENGINE` warnings on install and can fail at bundle time.
-Check with `node --version` and upgrade from https://nodejs.org if needed.
+## Who it is for
 
-### 2. Supabase project
+Small traders, wholesalers and shopkeepers who buy and sell goods by the piece,
+sell on credit as often as for cash, and work in places where mobile data is
+not a given.
 
-1. Create a project at [supabase.com](https://supabase.com) — region **Mumbai (ap-south-1)**.
-2. Open **SQL Editor**, paste all of [`supabase/schema.sql`](supabase/schema.sql), run it.
-   *Already ran an earlier copy?* Run the numbered migrations you have not applied
-   yet, in order — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
-   [`003_bill_entry.sql`](supabase/003_bill_entry.sql),
-   [`004_business_profile.sql`](supabase/004_business_profile.sql),
-   [`005_idempotent_bills.sql`](supabase/005_idempotent_bills.sql),
-   [`006_multi_tenant.sql`](supabase/006_multi_tenant.sql).
-   Run them in order. All are safe to re-run.
-3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
-   This app has no sign-up screen — accounts only exist because you made them.
-4. **Authentication → Users → Add user** for each person. Confirm the email.
+It is deliberately not accounting software. There are no ledgers to balance and
+no chart of accounts — just what you bought, what you sold, and who owes whom.
 
-That is the whole flow. A trigger creates each new user's profile, so there is
-no UUID to copy and no SQL to run per person. Every account starts with its own
-empty set of books.
+## Getting it
 
-### 3. Local env
+The app is not on the Play Store. It is installed directly from the
+[latest release](https://github.com/s7nket/GoatMat/releases/latest):
 
-```bash
-cp .env.example .env
-```
+1. Open the release link on your Android phone and download the APK
+2. Tap it — Android will ask permission to install from your browser, once
+3. Sign in with the details you were given
 
-Fill in `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from
-**Project Settings → Data API**. `.env` is gitignored.
+Accounts are created by invitation. There is no public sign-up.
 
-The anon key is public by design — it ships inside the APK and anyone can read
-it out. RLS is what protects the data. **Never** put the `service_role` key in
-this project.
+Updates arrive on their own — open the app and it is already up to date.
 
-### 4. Run it
+## Privacy
 
-```bash
-npm install
-```
+Your data is yours. Each account's books are isolated at the database level, so
+no other user of the app can read or change them. Nothing is shared, sold, or
+used for anything else.
 
-```bash
-npx expo start
-```
+---
 
-Install **Expo Go** on an Android phone, scan the QR code. Edits reload live.
-
-> Changed `.env`? Restart with `npx expo start -c` — env values are inlined
-> into the bundle and the cache holds the old ones.
-
-## Layout
-
-```
-src/
-  app/                  expo-router routes (file path = URL)
-    _layout.tsx         providers, font loading, auth gate
-    sign-in.tsx
-    (tabs)/             Home, Sales, Purchases, Parties, Reports
-  components/ui/        the whole component kit
-  lib/
-    supabase.ts         client
-    auth.tsx            session + membership context
-    queries.ts          react-query hooks
-    format.ts           money, dates, pieces
-    database.types.ts   mirrors supabase/schema.sql
-  theme/tokens.ts       every colour, size, shadow in the app
-supabase/schema.sql     run this in Supabase Studio
-```
-
-## One business per user
-
-Each account is its own tenant. Every row carries an `owner_id`, defaulted by
-Postgres to `auth.uid()` — the app never sends it, so a client bug cannot write
-into someone else's books. RLS is `owner_id = auth.uid() and is_active()`.
-
-There are no staff and no shared data. Two accounts cannot see each other's
-products, customers, stock or bills, and bill numbers run 1, 2, 3 within each
-business rather than interleaving across all of them.
-
-Sign-ups stay **disabled**. Accounts are created by hand in Supabase Studio;
-a trigger gives each new user their own profile.
-
-## Managing people
-
-Everything happens in Supabase Studio — the app has no admin screen and needs
-no redeploy.
-
-| To do this | Go here |
-|---|---|
-| Add an owner | **Authentication → Users → Add user**. Their profile and empty books appear automatically. |
-| Set their display name | On the same dialog, add `full_name` to user metadata. Otherwise it is derived from the email. |
-| Revoke access | **Table Editor → profiles**, set `active` to `false`. |
-| Restore access | Set `active` back to `true`. |
-| Remove permanently | Delete the auth user. This **fails** while they still have bills — `owner_id` references them and nothing cascades, on purpose. |
-
-Revoking beats deleting. `active = false` cuts every read and write instantly
-but leaves the data intact, so it can be turned back on. Deletion is blocked by
-the foreign key precisely so a business cannot be destroyed with one click in a
-table editor.
-
-Either takes effect on their next request — no need to touch their phone.
-
-## Offline
-
-Saving never touches the network. Every write goes into an outbox in
-AsyncStorage, and a worker sends it when there is signal — immediately if
-there is, later if not. The screen behaves the same either way, so there is no
-separate offline path that only gets exercised somewhere with no bars.
-
-The phone generates each row's UUID before sending. A request can succeed on
-the server and still fail on the way back, and without a client-side id the
-retry would write a second bill that nobody would ever notice.
-
-Reads come from the query cache, persisted to disk and rehydrated at launch.
-Stock and party balances are server views, so they are as old as the last
-sync — the unsent queue is folded back over them at render time. That is what
-stops someone overselling stock they already sold an hour ago.
-
-Three things still need a connection, and say so rather than failing quietly:
-
-| Blocked offline | Why |
-|---|---|
-| Sending a bill PDF | A queued bill has no bill number yet |
-| Voiding a bill | It changes a row only the server holds |
-| Reports | They reach back over months never cached on the phone |
-
-**Testing it:** Settings → *Test offline mode*. Simulates no signal without
-touching the device's data, so the whole flow can be exercised at a desk.
-
-## Rules that keep the data honest
-
-- **Stock is never stored.** `stock_view` computes bought − sold. It cannot drift.
-- **Bill totals are never typed.** A trigger recalculates `total_amount` from the
-  line items on every insert, update and delete.
-- **Bills are append-only.** To fix one, void it (`voided_at`) and enter a new
-  one. Voided bills stay for the audit trail and drop out of every view.
-- **Bills are written in one transaction.** `create_sale` / `create_purchase`
-  insert the header and its lines together, so a dropped connection can never
-  leave a zero-total orphan bill behind.
-
-## Opening stock
-
-Stock you already own before using the app is entered as a purchase, not typed
-in. Add a supplier called `Opening Stock`, record one purchase dated today with
-your real counts, and use whatever you actually paid as the rate (0 if unknown).
-Stock is then correct from day one and the books still balance.
-- **No raw values in screens.** Colours, spacing and type come from
-  `src/theme/tokens.ts`; money and dates go through `src/lib/format.ts`.
-
-## Checks
-
-```bash
-npx tsc --noEmit
-```
+<div align="center">
+<sub>Built for a real business, by the people running it.</sub>
+</div>

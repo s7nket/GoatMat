@@ -252,7 +252,7 @@ export type BillListRow = {
   paid_amount: number;
   payment_mode: string | null;
   voided_at: string | null;
-  party: { name: string; phone: string | null } | null;
+  party: { name: string; phone: string | null; address: string | null } | null;
 };
 
 export type BillLine = {
@@ -271,7 +271,8 @@ export type BillDetail = BillListRow & {
 };
 
 const LIST_COLUMNS =
-  'id, bill_no, bill_date, total_amount, paid_amount, payment_mode, voided_at, party:parties(name, phone)';
+  'id, bill_no, bill_date, total_amount, paid_amount, payment_mode, voided_at, ' +
+  'party:parties(name, phone, address)';
 
 export function useSales() {
   return useQuery({
