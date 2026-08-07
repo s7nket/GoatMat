@@ -4,17 +4,30 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 
 import type { Party, PartyKind, Product } from '@/lib/database.types';
-import { enqueue, flush, getJobs, type BillJob, type OutboxJob } from '@/lib/outbox';
+import {
+  enqueue,
+  flush,
+  getJobs,
+  removeJob,
+  retryJob,
+  type BillJob,
+  type OutboxJob,
+} from '@/lib/outbox';
 
 type OfflineState = {
   /** False when the device has no usable connection, or the dev switch is on. */
   online: boolean;
+  /** Jobs still expected to send. Excludes anything given up on. */
   pending: OutboxJob[];
   pendingBills: BillJob[];
+  /** Rejected or out of attempts. Needs a person to retry or discard it. */
+  failed: OutboxJob[];
   /** True while the queue is being sent. */
   syncing: boolean;
   queue: (job: OutboxJob) => Promise<void>;
   sync: () => Promise<void>;
+  retry: (id: string) => Promise<void>;
+  discard: (id: string) => Promise<void>;
   /** Dev-only switch so offline behaviour can be tested at a desk. */
   simulateOffline: boolean;
   setSimulateOffline: (value: boolean) => void;
@@ -27,8 +40,14 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   const [reachable, setReachable] = useState(true);
   const [simulateOffline, setSimulateOffline] = useState(false);
-  const [pending, setPending] = useState<OutboxJob[]>([]);
+  const [jobs, setJobs] = useState<OutboxJob[]>([]);
   const [syncing, setSyncing] = useState(false);
+
+  // A failed job is no longer on its way anywhere, so it must not be counted
+  // as pending or folded into stock and balances -- doing so would show the
+  // user a number that will never come true.
+  const pending = useMemo(() => jobs.filter((job) => job.status !== 'failed'), [jobs]);
+  const failed = useMemo(() => jobs.filter((job) => job.status === 'failed'), [jobs]);
 
   const online = reachable && !simulateOffline;
   // Read inside callbacks without making them depend on it, so the sync
@@ -37,7 +56,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   onlineRef.current = online;
 
   const refreshPending = useCallback(async () => {
-    setPending(await getJobs());
+    setJobs(await getJobs());
   }, []);
 
   const sync = useCallback(async () => {
@@ -83,14 +102,46 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [sync]);
 
+  // Backoff would otherwise mean "retry on the next reconnect or app restart",
+  // which on a phone that never loses signal again is never. This wakes the
+  // flusher exactly when the earliest waiting job comes due.
+  useEffect(() => {
+    if (!online) return;
+
+    const waiting = pending
+      .map((job) => job.nextAttemptAt)
+      .filter((at) => at > Date.now());
+    if (waiting.length === 0) return;
+
+    const delay = Math.min(...waiting) - Date.now();
+    const timer = setTimeout(() => void sync(), Math.max(delay, 1000));
+    return () => clearTimeout(timer);
+  }, [online, pending, sync]);
+
   const queue = useCallback(
     async (job: OutboxJob) => {
-      setPending(await enqueue(job));
+      setJobs(await enqueue(job));
       // Screens read pending jobs to show what has not landed yet.
       await queryClient.invalidateQueries();
       if (onlineRef.current) void sync();
     },
     [queryClient, sync],
+  );
+
+  const retry = useCallback(
+    async (id: string) => {
+      setJobs(await retryJob(id));
+      if (onlineRef.current) void sync();
+    },
+    [sync],
+  );
+
+  const discard = useCallback(
+    async (id: string) => {
+      setJobs(await removeJob(id));
+      await queryClient.invalidateQueries();
+    },
+    [queryClient],
   );
 
   const value = useMemo<OfflineState>(
@@ -100,13 +151,16 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       pendingBills: pending.filter(
         (job): job is BillJob => job.type === 'sale' || job.type === 'purchase',
       ),
+      failed,
       syncing,
       queue,
       sync,
+      retry,
+      discard,
       simulateOffline,
       setSimulateOffline,
     }),
-    [online, pending, syncing, queue, sync, simulateOffline],
+    [online, pending, failed, syncing, queue, sync, retry, discard, simulateOffline],
   );
 
   return <OfflineContext.Provider value={value}>{children}</OfflineContext.Provider>;

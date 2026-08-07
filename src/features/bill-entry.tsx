@@ -1,7 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,6 +70,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const [partyOpen, setPartyOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
   const [errors, setErrors] = useState<{ party?: string; items?: string }>({});
+  const submitting = useRef(false);
 
   const stockById = useMemo(
     () => new Map(stock.map((row) => [row.id, row.qty_left])),
@@ -132,6 +133,11 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   }
 
   async function handleSave() {
+    // The button disables itself once the mutation reports pending, but that is
+    // a state update -- two taps inside the same tick both get through, and
+    // each queues a job with its own id, so the idempotency key cannot help.
+    if (submitting.current) return;
+
     const nextErrors: typeof errors = {};
     if (!partyId) nextErrors.party = `Choose a ${partyKind}.`;
 
@@ -141,6 +147,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
+    submitting.current = true;
     try {
       await createBill.mutateAsync({
         partyId: partyId!,
@@ -161,6 +168,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
       });
       router.back();
     } catch (e) {
+      submitting.current = false;
       Alert.alert('Could not save bill', e instanceof Error ? e.message : 'Please try again.');
     }
   }

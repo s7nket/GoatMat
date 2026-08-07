@@ -13,13 +13,31 @@ const STORAGE_KEY = 'goatmat.outbox.v1';
  * database, so a retry that follows a request which actually succeeded is a
  * no-op rather than a duplicate bill. See supabase/005_idempotent_bills.sql.
  */
+/**
+ * Where a job is in its life.
+ *
+ * - `queued`  waiting for a connection, or waiting out its backoff
+ * - `failed`  the server rejected it, or it ran out of attempts. Needs a
+ *             person. Never sent again on its own, never deleted on its own.
+ *
+ * Nothing is ever discarded silently. With two users someone notices a missing
+ * bill; with ten nobody does, and the only trace it ever existed is here.
+ */
+export type JobStatus = 'queued' | 'failed';
+
+type JobMeta = {
+  id: string;
+  createdAt: string;
+  attempts: number;
+  status: JobStatus;
+  /** Epoch ms. The flusher skips the job until this passes. */
+  nextAttemptAt: number;
+  lastError?: string;
+};
+
 export type OutboxJob =
-  | {
-      id: string;
+  | (JobMeta & {
       type: 'sale' | 'purchase';
-      createdAt: string;
-      attempts: number;
-      lastError?: string;
       payload: {
         partyId: string;
         partyName: string;
@@ -31,13 +49,9 @@ export type OutboxJob =
         supplierRef: string | null;
         items: BillItemInput[];
       };
-    }
-  | {
-      id: string;
+    })
+  | (JobMeta & {
       type: 'product';
-      createdAt: string;
-      attempts: number;
-      lastError?: string;
       payload: {
         name: string;
         size: string | null;
@@ -46,13 +60,9 @@ export type OutboxJob =
         low_stock_at: number;
         notes: string | null;
       };
-    }
-  | {
-      id: string;
+    })
+  | (JobMeta & {
       type: 'party';
-      createdAt: string;
-      attempts: number;
-      lastError?: string;
       payload: {
         kind: PartyKind;
         name: string;
@@ -60,12 +70,40 @@ export type OutboxJob =
         address: string | null;
         notes: string | null;
       };
-    };
+    });
 
 export type BillJob = Extract<OutboxJob, { type: 'sale' | 'purchase' }>;
 
 export function newId(): string {
   return Crypto.randomUUID();
+}
+
+/**
+ * Roughly a day of trying before a job is handed to a person. Retrying past
+ * that is not persistence, it is a hidden problem.
+ */
+const MAX_ATTEMPTS = 10;
+const BASE_DELAY_MS = 5_000;
+const MAX_DELAY_MS = 60 * 60 * 1000;
+
+/**
+ * Exponential backoff with jitter. Without the backoff, a phone in a bad
+ * signal area retries on every connectivity flap and every app foreground,
+ * flattening its battery to no purpose. Without the jitter, every device that
+ * regained signal from the same tower would retry in lockstep.
+ */
+function backoffFor(attempts: number): number {
+  const delay = Math.min(BASE_DELAY_MS * 2 ** attempts, MAX_DELAY_MS);
+  return Date.now() + delay * (0.5 + Math.random() * 0.5);
+}
+
+export function newJobMeta(): Pick<JobMeta, 'createdAt' | 'attempts' | 'status' | 'nextAttemptAt'> {
+  return {
+    createdAt: new Date().toISOString(),
+    attempts: 0,
+    status: 'queued',
+    nextAttemptAt: 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -121,12 +159,23 @@ export function removeJob(id: string): Promise<OutboxJob[]> {
   });
 }
 
-async function recordFailure(id: string, message: string): Promise<void> {
+async function patchJob(id: string, patch: Partial<JobMeta>): Promise<void> {
   await serialise(async () => {
+    const next = (await readRaw()).map((job) => (job.id === id ? { ...job, ...patch } : job));
+    await writeRaw(next);
+  });
+}
+
+/** Puts a failed job back in line, from the top. */
+export function retryJob(id: string): Promise<OutboxJob[]> {
+  return serialise(async () => {
     const next = (await readRaw()).map((job) =>
-      job.id === id ? { ...job, attempts: job.attempts + 1, lastError: message } : job,
+      job.id === id
+        ? { ...job, status: 'queued' as const, attempts: 0, nextAttemptAt: 0, lastError: undefined }
+        : job,
     );
     await writeRaw(next);
+    return next;
   });
 }
 
@@ -214,9 +263,15 @@ export type FlushResult = { sent: number; failed: number; remaining: number };
 let flushing = false;
 
 /**
- * Sends everything queued, oldest first, stopping at the first transient
- * failure. Order matters: a bill can reference a party created moments
- * earlier in the same offline stretch.
+ * Sends the queue oldest first.
+ *
+ * Order matters, because a bill can reference a party created minutes earlier
+ * in the same offline stretch. So a transient failure stops the run rather
+ * than skipping ahead.
+ *
+ * Jobs already marked `failed` are stepped over instead. They are not going to
+ * send on their own, and leaving one at the head of the queue would freeze
+ * every bill behind it -- with no way out short of reinstalling the app.
  */
 export async function flush(): Promise<FlushResult> {
   if (flushing) return { sent: 0, failed: 0, remaining: (await getJobs()).length };
@@ -227,26 +282,39 @@ export async function flush(): Promise<FlushResult> {
 
   try {
     const jobs = await getJobs();
+    const now = Date.now();
 
     for (const job of jobs) {
+      if (job.status === 'failed') continue;
+
+      // Still serving its backoff. Stop rather than skip: whatever follows was
+      // queued later and may depend on this one.
+      if (job.nextAttemptAt > now) break;
+
       try {
         await send(job);
         await removeJob(job.id);
         sent += 1;
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Could not send.';
+        const attempts = job.attempts + 1;
 
-        if (isPermanent(error)) {
-          // Drop it rather than let it wedge the queue. The bill is lost, but
-          // it was never going to be accepted, and everything behind it can
-          // now get through.
-          await removeJob(job.id);
-          failed += 1;
-          continue;
-        }
+        // A Postgres or PostgREST error means the server received this and
+        // refused it. More attempts cannot change that answer.
+        const giveUp = isPermanent(error) || attempts >= MAX_ATTEMPTS;
 
-        await recordFailure(job.id, message);
+        await patchJob(job.id, {
+          attempts,
+          lastError: message,
+          status: giveUp ? 'failed' : 'queued',
+          nextAttemptAt: giveUp ? 0 : backoffFor(attempts),
+        });
+
         failed += 1;
+
+        // A rejected job is now inert and no longer blocks the queue, so carry
+        // on. A network failure means the connection is gone -- stop.
+        if (giveUp) continue;
         break;
       }
     }

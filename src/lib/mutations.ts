@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { BillItemInput, Party, PartyKind, PaymentMode, Product } from '@/lib/database.types';
 import { useOffline } from '@/lib/offline';
-import { newId } from '@/lib/outbox';
+import { newId, newJobMeta } from '@/lib/outbox';
 import { keys } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 
@@ -80,8 +80,7 @@ export function useCreateBill(kind: 'sale' | 'purchase') {
       await queue({
         id,
         type: kind,
-        createdAt: new Date().toISOString(),
-        attempts: 0,
+        ...newJobMeta(),
         payload: {
           partyId: input.partyId,
           partyName: input.partyName,
@@ -154,8 +153,7 @@ export function useSaveProduct() {
       await queue({
         id: newProductId,
         type: 'product',
-        createdAt: new Date().toISOString(),
-        attempts: 0,
+        ...newJobMeta(),
         payload: fields,
       });
       return newProductId;
@@ -207,8 +205,7 @@ export function useSaveParty() {
       await queue({
         id: newPartyId,
         type: 'party',
-        createdAt: new Date().toISOString(),
-        attempts: 0,
+        ...newJobMeta(),
         payload: fields,
       });
       return newPartyId;

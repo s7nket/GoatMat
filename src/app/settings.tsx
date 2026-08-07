@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Switch, View } from 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  Badge,
   Button,
   Card,
   FormHeader,
@@ -17,15 +18,32 @@ import {
 } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useSaveBusinessProfile } from '@/lib/mutations';
+import { money, prettyDate } from '@/lib/format';
 import { useOffline } from '@/lib/offline';
+import type { OutboxJob } from '@/lib/outbox';
 import { useBusinessProfile } from '@/lib/queries';
 import { colors, spacing } from '@/theme/tokens';
+
+/** Enough to recognise the entry without opening anything. */
+function describeJob(job: OutboxJob): string {
+  switch (job.type) {
+    case 'sale':
+      return `Sale to ${job.payload.partyName} · ${money(job.payload.totalAmount)}`;
+    case 'purchase':
+      return `Purchase from ${job.payload.partyName} · ${money(job.payload.totalAmount)}`;
+    case 'product':
+      return `Product · ${job.payload.name}`;
+    case 'party':
+      return `${job.payload.kind === 'customer' ? 'Customer' : 'Supplier'} · ${job.payload.name}`;
+  }
+}
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { member, session, signOut } = useAuth();
   const { data: business, isPending } = useBusinessProfile();
-  const { online, pending, syncing, sync, simulateOffline, setSimulateOffline } = useOffline();
+  const { online, pending, failed, syncing, sync, retry, discard, simulateOffline, setSimulateOffline } =
+    useOffline();
   const save = useSaveBusinessProfile();
 
   const [name, setName] = useState('');
@@ -63,6 +81,17 @@ export default function SettingsScreen() {
     } catch (e) {
       Alert.alert('Could not save', e instanceof Error ? e.message : 'Please try again.');
     }
+  }
+
+  function confirmDiscard(job: OutboxJob) {
+    Alert.alert(
+      'Discard this entry?',
+      `${describeJob(job)} will be deleted from this phone and never reaches the server. This cannot be undone.`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => discard(job.id) },
+      ],
+    );
   }
 
   function handleSignOut() {
@@ -166,6 +195,52 @@ export default function SettingsScreen() {
                 />
               ) : null}
 
+              {failed.length > 0 ? (
+                <>
+                  <SectionHeader
+                    title="Could not be sent"
+                    action={<Badge label={`${failed.length}`} tone="danger" />}
+                  />
+                  <Text variant="caption" tone="secondary" style={styles.failedNote}>
+                    The server refused these, so they will not send on their own. Nothing has been
+                    thrown away — retry once the cause is fixed, or discard if the entry was wrong.
+                  </Text>
+                  <Card padded={false}>
+                    {failed.map((job, index) => (
+                      <View key={job.id}>
+                        {index > 0 ? <RowDivider /> : null}
+                        <View style={styles.failedRow}>
+                          <View style={styles.failedText}>
+                            <Text variant="bodyMedium">{describeJob(job)}</Text>
+                            <Text variant="caption" tone="danger">
+                              {job.lastError ?? 'Rejected by the server.'}
+                            </Text>
+                            <Text variant="caption" tone="muted">
+                              {prettyDate(job.createdAt)} · {job.attempts} attempt
+                              {job.attempts === 1 ? '' : 's'}
+                            </Text>
+                          </View>
+                          <View style={styles.failedActions}>
+                            <Button
+                              label="Retry"
+                              size="sm"
+                              variant="secondary"
+                              onPress={() => retry(job.id)}
+                            />
+                            <Button
+                              label="Discard"
+                              size="sm"
+                              variant="danger"
+                              onPress={() => confirmDiscard(job)}
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+                  </Card>
+                </>
+              ) : null}
+
               <SectionHeader title="Account" />
 
               <Card padded={false}>
@@ -227,6 +302,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   switchText: { flex: 1, gap: 1 },
+  failedNote: { paddingHorizontal: spacing.xs, marginTop: -spacing.sm },
+  failedRow: { padding: spacing.lg, gap: spacing.md },
+  failedText: { gap: 2 },
+  failedActions: { flexDirection: 'row', gap: spacing.sm },
   signOut: { gap: spacing.md, paddingHorizontal: spacing.xs },
   footer: {
     paddingHorizontal: spacing.lg,

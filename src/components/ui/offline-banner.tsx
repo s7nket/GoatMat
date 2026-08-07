@@ -11,7 +11,20 @@ import { colors, spacing } from '@/theme/tokens';
  * Nothing is shown when online with an empty queue.
  */
 export function OfflineBanner() {
-  const { online, pending, syncing } = useOffline();
+  const { online, pending, failed, syncing } = useOffline();
+
+  // Something the server refused is not going to fix itself, so it gets a
+  // louder strip that points at where it can be dealt with.
+  if (failed.length > 0) {
+    return (
+      <View style={[styles.bar, styles.failed]}>
+        <Feather name="alert-triangle" size={13} color={colors.danger} />
+        <Text variant="caption" style={{ color: colors.danger }}>
+          {failed.length} entr{failed.length === 1 ? 'y' : 'ies'} could not be sent · see Settings
+        </Text>
+      </View>
+    );
+  }
 
   if (online && pending.length === 0) return null;
 
@@ -55,5 +68,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   offline: { backgroundColor: colors.warningSoft },
+  failed: { backgroundColor: colors.dangerSoft },
   syncing: { backgroundColor: colors.infoSoft },
 });
