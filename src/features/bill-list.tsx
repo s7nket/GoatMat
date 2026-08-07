@@ -4,6 +4,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  Badge,
   Button,
   Card,
   EmptyState,
@@ -16,6 +17,7 @@ import {
   SectionHeader,
 } from '@/components/ui';
 import { money, prettyDate, shortDate } from '@/lib/format';
+import { usePendingBills } from '@/lib/offline';
 import { type BillListRow, usePurchases, useSales } from '@/lib/queries';
 import { spacing } from '@/theme/tokens';
 
@@ -40,6 +42,11 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
   const query = isSale ? sales : purchases;
   const { data, isPending, isError, error, refetch, isRefetching } = query;
 
+  const pending = usePendingBills(kind);
+
+  // Unsent bills are shown as their own group at the top rather than mixed
+  // into the dates below. They have no bill number yet, so sorting them among
+  // numbered bills would look like a gap in the sequence.
   const groups = useMemo(() => groupByDate(data ?? []), [data]);
 
   function openNew() {
@@ -61,6 +68,40 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
         right={<Button label="New" size="sm" icon="plus" onPress={openNew} />}
       />
 
+      {pending.length > 0 ? (
+        <View style={{ gap: spacing.lg }}>
+          <SectionHeader
+            title="Waiting to send"
+            action={<Badge label={`${pending.length}`} tone="warning" />}
+          />
+          <Card padded={false}>
+            {pending.map((job, index) => {
+              const balance = job.payload.totalAmount - job.payload.paidAmount;
+              return (
+                <View key={job.id}>
+                  {index > 0 ? <RowDivider /> : null}
+                  <ListRow
+                    icon="clock"
+                    title={job.payload.partyName}
+                    subtitle={
+                      job.lastError
+                        ? `Not sent yet · ${job.lastError}`
+                        : balance > 0
+                          ? `Pending · ${money(balance)} ${isSale ? 'to receive' : 'to pay'}`
+                          : 'Pending · settled'
+                    }
+                    value={money(job.payload.totalAmount)}
+                    valueTone="muted"
+                    valueCaption={shortDate(job.payload.billDate)}
+                    chevron={false}
+                  />
+                </View>
+              );
+            })}
+          </Card>
+        </View>
+      ) : null}
+
       {isPending ? (
         <LoadingState label="Loading bills" />
       ) : isError ? (
@@ -68,7 +109,7 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
           message={error instanceof Error ? error.message : 'Could not load bills.'}
           onRetry={refetch}
         />
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && pending.length === 0 ? (
         <EmptyState
           icon={isSale ? 'trending-up' : 'shopping-bag'}
           title={isSale ? 'No sales yet' : 'No purchases yet'}

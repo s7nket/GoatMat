@@ -91,7 +91,7 @@ export default function HomeScreen() {
         }))}
       />
 
-      {isPending ? (
+      {isPending || !data ? (
         <LoadingState label="Loading numbers" />
       ) : isError ? (
         <ErrorState

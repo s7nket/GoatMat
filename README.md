@@ -16,10 +16,39 @@ handed out directly.
 | 1 | Products, suppliers, customers CRUD | **done** |
 | 2 | Purchase + sale entry, live stock | **done** |
 | 3 | PDF kaccha bill, WhatsApp share | **done** |
-| 4 | Offline outbox + sync | next |
+| 4 | Offline outbox + sync | **done** |
 | 5 | Date-range reports | **done** |
 | 6 | Payments / udhaar ledger | |
-| 7 | EAS build + GitHub Release | |
+| 7 | EAS build + GitHub Release | **done** — [v1.0.0](https://github.com/s7nket/GoatMat/releases/latest) |
+
+Phases 4 and 6 are JavaScript only, so they ship as over-the-air updates —
+no reinstall.
+
+## Releasing
+
+```bash
+npx eas-cli@latest build --platform android --profile production
+```
+
+Produces a universal APK (~104 MB). Download it, rename it `GoatMat-vX.Y.Z.apk`,
+and attach it to a GitHub release tagged from `main`.
+
+Needed only when something native changes — a new library, the icon, a
+permission, or the version in `app.json`. Everything else goes out as:
+
+```bash
+npx eas-cli@latest update --branch production --message "what changed"
+```
+
+Installed apps pick that up on next launch. `runtimeVersion` follows
+`app.json`'s `version`, so an update can never reach a binary too old to run
+it — bump the version and you owe everyone a new APK.
+
+Build secrets live in EAS, not in the repo. After changing `.env`:
+
+```bash
+npx eas-cli@latest env:push --path .env --environment production
+```
 
 ## First-time setup
 
@@ -36,7 +65,9 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
    *Already ran an earlier copy?* Run the numbered migrations you have not applied
    yet, in order — [`002_members_auto_provision.sql`](supabase/002_members_auto_provision.sql),
    [`003_bill_entry.sql`](supabase/003_bill_entry.sql),
-   [`004_business_profile.sql`](supabase/004_business_profile.sql). All are safe to re-run.
+   [`004_business_profile.sql`](supabase/004_business_profile.sql),
+   [`005_idempotent_bills.sql`](supabase/005_idempotent_bills.sql).
+   Run them in order. All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.
 4. **Authentication → Users → Add user** for each person. Confirm the email.
@@ -110,6 +141,33 @@ while their name stays attached to the bills they entered. Deleting a user who
 already recorded sales leaves those bills with a dangling `created_by`.
 
 The change takes effect on their next request — no need to touch their phone.
+
+## Offline
+
+Saving never touches the network. Every write goes into an outbox in
+AsyncStorage, and a worker sends it when there is signal — immediately if
+there is, later if not. The screen behaves the same either way, so there is no
+separate offline path that only gets exercised somewhere with no bars.
+
+The phone generates each row's UUID before sending. A request can succeed on
+the server and still fail on the way back, and without a client-side id the
+retry would write a second bill that nobody would ever notice.
+
+Reads come from the query cache, persisted to disk and rehydrated at launch.
+Stock and party balances are server views, so they are as old as the last
+sync — the unsent queue is folded back over them at render time. That is what
+stops someone overselling stock they already sold an hour ago.
+
+Three things still need a connection, and say so rather than failing quietly:
+
+| Blocked offline | Why |
+|---|---|
+| Sending a bill PDF | A queued bill has no bill number yet |
+| Voiding a bill | It changes a row only the server holds |
+| Reports | They reach back over months never cached on the phone |
+
+**Testing it:** Settings → *Test offline mode*. Simulates no signal without
+touching the device's data, so the whole flow can be exercised at a desk.
 
 ## Rules that keep the data honest
 

@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import type { BillItemInput, Party, PartyKind, PaymentMode, Product } from '@/lib/database.types';
+import { useOffline } from '@/lib/offline';
+import { newId, newJobMeta } from '@/lib/outbox';
 import { keys } from '@/lib/queries';
 import { supabase } from '@/lib/supabase';
 
@@ -48,9 +50,11 @@ export function useSaveBusinessProfile() {
 
 export type BillInput = {
   partyId: string;
+  partyName: string;
   billDate: string;
   paymentMode: PaymentMode | null;
   paidAmount: number;
+  totalAmount: number;
   notes: string | null;
   /** Purchases only: the supplier's own bill number. */
   supplierRef?: string | null;
@@ -58,47 +62,44 @@ export type BillInput = {
 };
 
 /**
- * Bills are written through a Postgres function so the header and its lines
- * land in one transaction. Two round trips would leave a zero-total orphan
- * bill behind any time the phone dropped signal between them.
+ * Saving a bill never touches the network. It goes into the outbox and the
+ * sync worker sends it -- immediately when there is signal, later when there
+ * is not. The screen behaves identically either way, so there is no separate
+ * offline code path that only gets exercised in a field somewhere.
+ *
+ * The bill's id is generated here rather than by Postgres, which is what makes
+ * a retry safe. See supabase/005_idempotent_bills.sql.
  */
 export function useCreateBill(kind: 'sale' | 'purchase') {
-  const invalidate = useInvalidateAll();
+  const { queue } = useOffline();
 
   return useMutation({
     mutationFn: async (input: BillInput): Promise<string> => {
-      const items = input.items.map((item) => ({
-        product_id: item.product_id,
-        qty: item.qty,
-        rate: item.rate,
-      }));
+      const id = newId();
 
-      if (kind === 'sale') {
-        const { data, error } = await supabase.rpc('create_sale', {
-          p_customer_id: input.partyId,
-          p_bill_date: input.billDate,
-          p_payment_mode: input.paymentMode,
-          p_paid_amount: input.paidAmount,
-          p_notes: input.notes,
-          p_items: items,
-        });
-        if (error) throw error;
-        return data;
-      }
-
-      const { data, error } = await supabase.rpc('create_purchase', {
-        p_supplier_id: input.partyId,
-        p_bill_date: input.billDate,
-        p_supplier_ref: input.supplierRef ?? null,
-        p_payment_mode: input.paymentMode,
-        p_paid_amount: input.paidAmount,
-        p_notes: input.notes,
-        p_items: items,
+      await queue({
+        id,
+        type: kind,
+        ...newJobMeta(),
+        payload: {
+          partyId: input.partyId,
+          partyName: input.partyName,
+          billDate: input.billDate,
+          paymentMode: input.paymentMode,
+          paidAmount: input.paidAmount,
+          totalAmount: input.totalAmount,
+          notes: input.notes,
+          supplierRef: input.supplierRef ?? null,
+          items: input.items.map((item) => ({
+            product_id: item.product_id,
+            qty: item.qty,
+            rate: item.rate,
+          })),
+        },
       });
-      if (error) throw error;
-      return data;
+
+      return id;
     },
-    onSuccess: invalidate,
   });
 }
 
@@ -128,22 +129,34 @@ export type ProductInput = {
   notes: string | null;
 };
 
+/**
+ * New products go through the outbox so they can be added offline. Edits do
+ * not: changing a rate is a last-write-wins update, and queueing it would mean
+ * a stale value from hours ago overwriting a colleague's newer one when the
+ * queue finally drains.
+ */
 export function useSaveProduct() {
   const invalidate = useInvalidateAll();
+  const { queue } = useOffline();
 
   return useMutation({
-    mutationFn: async (input: ProductInput): Promise<Product> => {
+    mutationFn: async (input: ProductInput): Promise<string> => {
       const { id, ...fields } = input;
 
-      // Insert and update rather than upsert: an upsert with no id would let a
-      // typo in the payload silently create a duplicate product.
-      const query = id
-        ? supabase.from('products').update(fields).eq('id', id)
-        : supabase.from('products').insert(fields);
+      if (id) {
+        const { error } = await supabase.from('products').update(fields).eq('id', id);
+        if (error) throw error;
+        return id;
+      }
 
-      const { data, error } = await query.select().single();
-      if (error) throw error;
-      return data;
+      const newProductId = newId();
+      await queue({
+        id: newProductId,
+        type: 'product',
+        ...newJobMeta(),
+        payload: fields,
+      });
+      return newProductId;
     },
     onSuccess: invalidate,
   });
@@ -176,18 +189,26 @@ export type PartyInput = {
 
 export function useSaveParty() {
   const invalidate = useInvalidateAll();
+  const { queue } = useOffline();
 
   return useMutation({
-    mutationFn: async (input: PartyInput): Promise<Party> => {
+    mutationFn: async (input: PartyInput): Promise<string> => {
       const { id, ...fields } = input;
 
-      const query = id
-        ? supabase.from('parties').update(fields).eq('id', id)
-        : supabase.from('parties').insert(fields);
+      if (id) {
+        const { error } = await supabase.from('parties').update(fields).eq('id', id);
+        if (error) throw error;
+        return id;
+      }
 
-      const { data, error } = await query.select().single();
-      if (error) throw error;
-      return data;
+      const newPartyId = newId();
+      await queue({
+        id: newPartyId,
+        type: 'party',
+        ...newJobMeta(),
+        payload: fields,
+      });
+      return newPartyId;
     },
     onSuccess: invalidate,
   });
