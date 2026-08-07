@@ -26,10 +26,21 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileStatus, setProfileStatus] = useState<ProfileStatus>('idle');
+  // Tagged with the user it belongs to. Signing in as someone else would
+  // otherwise show the previous account's profile until the new one arrives.
+  const [loaded, setLoaded] = useState<{
+    userId: string;
+    profile: Profile | null;
+    status: Extract<ProfileStatus, 'ready' | 'denied' | 'error'>;
+  } | null>(null);
   const [profileNonce, setProfileNonce] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  // Derived rather than stored, so there is no state to clear on sign-out and
+  // no window where the two disagree.
+  const fresh = session && loaded?.userId === session.user.id ? loaded : null;
+  const profile = fresh?.profile ?? null;
+  const profileStatus: ProfileStatus = !session ? 'idle' : (fresh?.status ?? 'checking');
 
   useEffect(() => {
     let active = true;
@@ -60,14 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // off is a value on the row and not an empty result -- which keeps it
   // distinct from a request that simply failed.
   useEffect(() => {
+    if (!session) return;
     let running = true;
-    if (!session) {
-      setProfile(null);
-      setProfileStatus('idle');
-      return;
-    }
-
-    setProfileStatus('checking');
 
     supabase
       .from('profiles')
@@ -76,13 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle()
       .then(({ data, error }) => {
         if (!running) return;
-        if (error) {
-          setProfile(null);
-          setProfileStatus('error');
-          return;
-        }
-        setProfile(data ?? null);
-        setProfileStatus(data && data.active ? 'ready' : 'denied');
+        setLoaded({
+          userId: session.user.id,
+          profile: error ? null : (data ?? null),
+          status: error ? 'error' : data && data.active ? 'ready' : 'denied',
+        });
       });
 
     return () => {
@@ -102,8 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setProfile(null);
-    setProfileStatus('idle');
+    setLoaded(null);
   }, []);
 
   const value = useMemo<AuthState>(

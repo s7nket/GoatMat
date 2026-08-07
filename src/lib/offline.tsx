@@ -46,9 +46,13 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const failed = useMemo(() => jobs.filter((job) => job.status === 'failed'), [jobs]);
 
   // Read inside callbacks without making them depend on it, so the sync
-  // function stays stable across renders.
+  // function stays stable across renders. Written in an effect rather than
+  // during render: React Compiler is enabled, and an assignment in the render
+  // body is exactly the kind of thing it is free to memoise away.
   const onlineRef = useRef(online);
-  onlineRef.current = online;
+  useEffect(() => {
+    onlineRef.current = online;
+  }, [online]);
 
   const refreshPending = useCallback(async () => {
     setJobs(await getJobs());
@@ -70,6 +74,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
 
   // Load anything left over from a previous run before doing anything else.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshPending();
   }, [refreshPending]);
 

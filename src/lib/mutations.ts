@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import type { BillItemInput, Party, PartyKind, PaymentMode, Product } from '@/lib/database.types';
+import type { BillItemInput, PartyKind, PaymentMode } from '@/lib/database.types';
 import { useOffline } from '@/lib/offline';
 import { newId, newJobMeta } from '@/lib/outbox';
 import { keys } from '@/lib/queries';

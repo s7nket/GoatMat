@@ -52,8 +52,11 @@ export default function SettingsScreen() {
   const [footer, setFooter] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
+  // Hydrate the form once the row arrives. The fields are edited locally
+  // afterwards, so they cannot simply be derived from the query.
   useEffect(() => {
     if (!business) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(business.business_name ?? '');
     setOwner(business.owner_name ?? '');
     setPhone(business.phone ?? '');
