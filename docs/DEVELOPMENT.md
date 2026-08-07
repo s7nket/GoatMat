@@ -40,8 +40,12 @@ Needed only when something native changes — a new library, the icon, a
 permission, or the version in `app.json`. Everything else goes out as:
 
 ```bash
-npx eas-cli@latest update --branch production --message "what changed"
+npx eas-cli@latest update --branch production --environment production --platform android --message "what changed"
 ```
+
+`--platform android` matters: without it the export includes web, which
+prerenders the app in Node, where Supabase auth touches `window` and the
+publish fails.
 
 Installed apps pick that up on next launch. `runtimeVersion` follows
 `app.json`'s `version`, so an update can never reach a binary too old to run
