@@ -273,17 +273,45 @@ export function usePendingStockDelta(): Map<string, number> {
   }, [pendingBills]);
 }
 
+export type PaymentJob = Extract<OutboxJob, { type: 'payment' }>;
+
+export function usePendingPayments(partyId?: string): PaymentJob[] {
+  const { pending } = useOffline();
+
+  return useMemo(
+    () =>
+      pending
+        .filter((job): job is PaymentJob => job.type === 'payment')
+        .filter((job) => !partyId || job.payload.partyId === partyId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [pending, partyId],
+  );
+}
+
 /** Positive means they owe us more once the queue lands. */
 export function usePendingBalanceDelta(): Map<string, number> {
   const { pendingBills } = useOffline();
+  const pendingPayments = usePendingPayments();
 
   return useMemo(() => {
     const delta = new Map<string, number>();
+
     for (const job of pendingBills) {
       const unpaid = job.payload.totalAmount - job.payload.paidAmount;
       const sign = job.type === 'sale' ? 1 : -1;
       delta.set(job.payload.partyId, (delta.get(job.payload.partyId) ?? 0) + sign * unpaid);
     }
+
+    // Money received settles what a customer owes; money paid out settles what
+    // we owe a supplier. Same axis, opposite directions.
+    for (const job of pendingPayments) {
+      const sign = job.payload.direction === 'in' ? -1 : 1;
+      delta.set(
+        job.payload.partyId,
+        (delta.get(job.payload.partyId) ?? 0) + sign * job.payload.amount,
+      );
+    }
+
     return delta;
-  }, [pendingBills]);
+  }, [pendingBills, pendingPayments]);
 }

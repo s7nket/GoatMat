@@ -351,7 +351,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         createLabel={`Add ${partyKind}`}
         onCreate={() => {
           setPartyOpen(false);
-          router.push({ pathname: '/parties/[id]', params: { id: 'new', kind: partyKind } });
+          router.push({ pathname: '/parties/new', params: { kind: partyKind } });
         }}
         onSelect={(option) => {
           setPartyId(option.id);

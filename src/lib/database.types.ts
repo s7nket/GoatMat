@@ -244,6 +244,19 @@ export type Database = {
         };
         Returns: string;
       };
+      create_payment: {
+        Args: {
+          p_id: string;
+          p_party_id: string;
+          p_pay_date: string;
+          p_amount: number;
+          p_direction: 'in' | 'out';
+          p_mode: 'cash' | 'upi' | 'bank' | null;
+          p_note: string | null;
+        };
+        Returns: string;
+      };
+      void_payment: { Args: { p_id: string }; Returns: undefined };
       void_sale: { Args: { p_id: string; p_reason: string | null }; Returns: undefined };
       void_purchase: { Args: { p_id: string; p_reason: string | null }; Returns: undefined };
     };

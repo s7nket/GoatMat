@@ -77,6 +77,19 @@ export type OutboxJob =
         address: string | null;
         notes: string | null;
       };
+    })
+  | (JobMeta & {
+      type: 'payment';
+      payload: {
+        partyId: string;
+        partyName: string;
+        payDate: string;
+        amount: number;
+        /** 'in' is money received from a customer, 'out' is paid to a supplier. */
+        direction: 'in' | 'out';
+        mode: 'cash' | 'upi' | 'bank' | null;
+        note: string | null;
+      };
     });
 
 export type BillJob = Extract<OutboxJob, { type: 'sale' | 'purchase' }>;
@@ -239,6 +252,20 @@ async function send(job: OutboxJob): Promise<void> {
       p_default_rate: job.payload.default_rate,
       p_low_stock_at: job.payload.low_stock_at,
       p_notes: job.payload.notes,
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if (job.type === 'payment') {
+    const { error } = await supabase.rpc('create_payment', {
+      p_id: job.id,
+      p_party_id: job.payload.partyId,
+      p_pay_date: job.payload.payDate,
+      p_amount: job.payload.amount,
+      p_direction: job.payload.direction,
+      p_mode: job.payload.mode,
+      p_note: job.payload.note,
     });
     if (error) throw error;
     return;

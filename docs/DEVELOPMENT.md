@@ -21,7 +21,7 @@ directly.
 | 3 | PDF kaccha bill, WhatsApp share | **done** |
 | 4 | Offline outbox + sync | **done** |
 | 5 | Date-range reports | **done** |
-| 6 | Payments / udhaar ledger | |
+| 6 | Payments / udhaar ledger | **done** |
 | 7 | EAS build + GitHub Release | **done** — [v1.0.0](https://github.com/s7nket/GoatMat/releases/latest) |
 
 Phases 4 and 6 are JavaScript only, so they ship as over-the-air updates —
@@ -74,7 +74,8 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
    [`003_bill_entry.sql`](../supabase/003_bill_entry.sql),
    [`004_business_profile.sql`](../supabase/004_business_profile.sql),
    [`005_idempotent_bills.sql`](../supabase/005_idempotent_bills.sql),
-   [`006_multi_tenant.sql`](../supabase/006_multi_tenant.sql).
+   [`006_multi_tenant.sql`](../supabase/006_multi_tenant.sql),
+   [`007_payments.sql`](../supabase/007_payments.sql).
    Run them in order. All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.

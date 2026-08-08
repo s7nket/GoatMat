@@ -77,7 +77,10 @@ function RootNavigator() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="products/index" />
           <Stack.Screen name="products/[id]" />
-          <Stack.Screen name="parties/[id]" />
+          <Stack.Screen name="parties/new" />
+          <Stack.Screen name="parties/[id]/index" />
+          <Stack.Screen name="parties/[id]/edit" />
+          <Stack.Screen name="parties/[id]/payment" />
           <Stack.Screen name="sales/[id]" />
           <Stack.Screen name="purchases/[id]" />
           <Stack.Screen name="settings" />

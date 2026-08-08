@@ -42,7 +42,7 @@ export default function PartiesScreen() {
             label="Add"
             size="sm"
             icon="plus"
-            onPress={() => router.push({ pathname: '/parties/[id]', params: { id: 'new', kind } })}
+            onPress={() => router.push({ pathname: '/parties/new', params: { kind } })}
           />
         }
       />
@@ -73,7 +73,7 @@ export default function PartiesScreen() {
               : 'Add the people you buy stock from. What you still owe them shows up here.'
           }
           actionLabel={`Add ${noun}`}
-          onAction={() => router.push({ pathname: '/parties/[id]', params: { id: 'new', kind } })}
+          onAction={() => router.push({ pathname: '/parties/new', params: { kind } })}
         />
       ) : (
         <Card padded={false}>

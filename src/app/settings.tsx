@@ -35,6 +35,8 @@ function describeJob(job: OutboxJob): string {
       return `Product · ${job.payload.name}`;
     case 'party':
       return `${job.payload.kind === 'customer' ? 'Customer' : 'Supplier'} · ${job.payload.name}`;
+    case 'payment':
+      return `${job.payload.direction === 'in' ? 'Received from' : 'Paid to'} ${job.payload.partyName} · ${money(job.payload.amount)}`;
   }
 }
 

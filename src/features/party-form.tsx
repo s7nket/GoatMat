@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,8 +20,7 @@ import { useArchiveParty, useSaveParty } from '@/lib/mutations';
 import { useParty } from '@/lib/queries';
 import { colors, spacing } from '@/theme/tokens';
 
-export default function PartyFormScreen() {
-  const { id, kind: kindParam } = useLocalSearchParams<{ id: string; kind?: PartyKind }>();
+export function PartyForm({ id, kindParam }: { id: string; kindParam?: PartyKind }) {
   const isNew = id === 'new';
   const router = useRouter();
   const insets = useSafeAreaInsets();

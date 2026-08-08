@@ -375,7 +375,7 @@ export function useReport(from: string, to: string) {
   return useQuery({
     queryKey: ['report', from, to],
     queryFn: async (): Promise<ReportSummary> => {
-      const [salesRes, purchasesRes] = await Promise.all([
+      const [salesRes, purchasesRes, paymentsRes] = await Promise.all([
         supabase
           .from('sales')
           .select(REPORT_COLUMNS('sale_items'))
@@ -388,10 +388,20 @@ export function useReport(from: string, to: string) {
           .gte('bill_date', from)
           .lte('bill_date', to)
           .is('voided_at', null),
+        // Settlements against older bills are cash that moved in this period
+        // even though the bill did not. Leaving them out made "collected"
+        // mean "collected at the counter", which is not what it says.
+        supabase
+          .from('payments')
+          .select('amount, direction')
+          .gte('pay_date', from)
+          .lte('pay_date', to)
+          .is('voided_at', null),
       ]);
 
       if (salesRes.error) throw salesRes.error;
       if (purchasesRes.error) throw purchasesRes.error;
+      if (paymentsRes.error) throw paymentsRes.error;
 
       const sales = (salesRes.data ?? []) as unknown as ReportBill[];
       const purchases = (purchasesRes.data ?? []) as unknown as ReportBill[];
@@ -454,6 +464,11 @@ export function useReport(from: string, to: string) {
         }
       }
 
+      for (const payment of paymentsRes.data ?? []) {
+        if (payment.direction === 'in') collected += Number(payment.amount ?? 0);
+        else paidOut += Number(payment.amount ?? 0);
+      }
+
       return {
         salesTotal,
         salesCount: sales.length,
@@ -465,6 +480,85 @@ export function useReport(from: string, to: string) {
         products: [...products.values()].sort((a, b) => b.soldValue - a.soldValue),
         topCustomers: [...customers.values()].sort((a, b) => b.value - a.value).slice(0, 5),
       };
+    },
+  });
+}
+
+/** One line in a party's history: a bill they were on, or money that moved. */
+export type LedgerEntry = {
+  id: string;
+  kind: 'sale' | 'purchase' | 'payment';
+  date: string;
+  /** Bills only. */
+  billNo?: number;
+  /** What it does to the balance: positive means they owe more. */
+  delta: number;
+  amount: number;
+  label: string;
+  note: string | null;
+  pending?: boolean;
+};
+
+/**
+ * A party's full history, newest first. Bills and payments live in different
+ * tables and are stitched together here rather than in a view, so unsent
+ * entries from the outbox can be folded into the same list.
+ */
+export function usePartyLedger(partyId: string | undefined, kind: PartyKind | undefined) {
+  return useQuery({
+    queryKey: ['ledger', partyId],
+    enabled: !!partyId && partyId !== 'new',
+    queryFn: async (): Promise<LedgerEntry[]> => {
+      const isSupplier = kind === 'supplier';
+      const columns = 'id, bill_no, bill_date, total_amount, paid_amount, notes';
+
+      // Written out per table rather than parameterised: the table and its
+      // party column have to agree, and spelling both out is what lets the
+      // typed client check that they do.
+      const [billsRes, paymentsRes] = await Promise.all([
+        isSupplier
+          ? supabase
+              .from('purchases')
+              .select(columns)
+              .eq('supplier_id', partyId!)
+              .is('voided_at', null)
+          : supabase.from('sales').select(columns).eq('customer_id', partyId!).is('voided_at', null),
+        supabase
+          .from('payments')
+          .select('id, pay_date, amount, direction, mode, note')
+          .eq('party_id', partyId!)
+          .is('voided_at', null),
+      ]);
+
+      if (billsRes.error) throw billsRes.error;
+      if (paymentsRes.error) throw paymentsRes.error;
+
+      const sign = isSupplier ? -1 : 1;
+
+      const bills: LedgerEntry[] = (billsRes.data ?? []).map((bill) => ({
+        id: bill.id,
+        kind: isSupplier ? 'purchase' : 'sale',
+        date: bill.bill_date,
+        billNo: bill.bill_no,
+        // Only the unpaid part moves the balance; whatever was settled at the
+        // counter never became a debt.
+        delta: sign * (Number(bill.total_amount) - Number(bill.paid_amount)),
+        amount: Number(bill.total_amount),
+        label: isSupplier ? 'Purchase' : 'Sale',
+        note: bill.notes,
+      }));
+
+      const payments: LedgerEntry[] = (paymentsRes.data ?? []).map((payment) => ({
+        id: payment.id,
+        kind: 'payment',
+        date: payment.pay_date,
+        delta: (payment.direction === 'in' ? -1 : 1) * Number(payment.amount),
+        amount: Number(payment.amount),
+        label: payment.direction === 'in' ? 'Received' : 'Paid',
+        note: payment.note,
+      }));
+
+      return [...bills, ...payments].sort((a, b) => b.date.localeCompare(a.date));
     },
   });
 }

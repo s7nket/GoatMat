@@ -22,6 +22,7 @@ function useInvalidateAll() {
       client.invalidateQueries({ queryKey: keys.balances }),
       client.invalidateQueries({ queryKey: keys.sales }),
       client.invalidateQueries({ queryKey: keys.purchases }),
+      client.invalidateQueries({ queryKey: ['ledger'] }),
       client.invalidateQueries({ queryKey: ['dashboard'] }),
     ]);
 }
@@ -117,6 +118,57 @@ export function useVoidBill(kind: 'sale' | 'purchase') {
         p_id: id,
         p_reason: reason,
       });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export type PaymentInput = {
+  partyId: string;
+  partyName: string;
+  payDate: string;
+  amount: number;
+  direction: 'in' | 'out';
+  mode: 'cash' | 'upi' | 'bank' | null;
+  note: string | null;
+};
+
+/** Settling an old balance, as opposed to paying at the moment of the bill. */
+export function useCreatePayment() {
+  const { queue, userId } = useOffline();
+
+  return useMutation({
+    mutationFn: async (input: PaymentInput): Promise<string> => {
+      if (!userId) throw new Error('Sign in before saving.');
+
+      const id = newId();
+      await queue({
+        id,
+        type: 'payment',
+        ...newJobMeta(userId),
+        payload: {
+          partyId: input.partyId,
+          partyName: input.partyName,
+          payDate: input.payDate,
+          amount: input.amount,
+          direction: input.direction,
+          mode: input.mode,
+          note: input.note,
+        },
+      });
+      return id;
+    },
+  });
+}
+
+/** Voided, never deleted -- a receipt that vanishes is worse than one cancelled. */
+export function useVoidPayment() {
+  const invalidate = useInvalidateAll();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc('void_payment', { p_id: id });
       if (error) throw error;
     },
     onSuccess: invalidate,
