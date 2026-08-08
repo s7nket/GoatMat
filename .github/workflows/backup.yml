@@ -1,0 +1,84 @@
+name: Database backup
+
+# Free-tier Supabase has no automated backups, so this is the only copy of the
+# business's books that exists anywhere. It also doubles as a keep-alive: free
+# projects pause after a week of inactivity, and a nightly connection is
+# activity.
+on:
+  schedule:
+    # 02:00 IST. GitHub cron is UTC, and scheduled runs can be delayed by a few
+    # minutes under load -- fine for a nightly dump.
+    - cron: '30 20 * * *'
+  workflow_dispatch: # so a backup can be taken by hand before anything risky
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the backup repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.BACKUP_REPO }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backups
+
+      - name: Install a matching pg_dump
+        # Ubuntu ships an older client than Supabase runs; a version mismatch
+        # makes pg_dump refuse outright.
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          pg_dump --version
+
+      - name: Dump the database
+        env:
+          # Must be the Session pooler string. Supabase's direct connection is
+          # IPv6-only without the paid add-on, and GitHub runners are IPv4.
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p backups/dumps
+          STAMP=$(date -u +'%Y-%m-%d')
+
+          pg_dump "$DATABASE_URL" \
+            --clean --if-exists --no-owner --no-privileges \
+            --schema=public \
+            --file="backups/dumps/goatmat-$STAMP.sql"
+
+          gzip -f "backups/dumps/goatmat-$STAMP.sql"
+
+          SIZE=$(stat -c%s "backups/dumps/goatmat-$STAMP.sql.gz")
+          echo "Dump size: $SIZE bytes"
+
+          # A dump this small means the connection worked but returned nothing.
+          # Committing it would quietly replace a good backup with an empty one.
+          if [ "$SIZE" -lt 2000 ]; then
+            echo "::error::Dump is suspiciously small ($SIZE bytes). Not committing."
+            exit 1
+          fi
+
+      - name: Drop dumps older than 90 days
+        run: find backups/dumps -name '*.sql.gz' -mtime +90 -delete
+
+      - name: Commit
+        working-directory: backups
+        run: |
+          set -euo pipefail
+          git config user.name 'goatmat-backup'
+          git config user.email 'actions@github.com'
+          git add dumps
+
+          if git diff --staged --quiet; then
+            echo 'Nothing changed today.'
+            exit 0
+          fi
+
+          git commit -m "Backup $(date -u +'%Y-%m-%d')"
+          git push

@@ -195,6 +195,41 @@ Three things still need a connection, and say so rather than failing quietly:
 the queue was verified — a control in Settings that deliberately breaks the app
 is not worth the support conversation.
 
+## Backups
+
+Free-tier Supabase has **no automated backups and no point-in-time recovery**,
+so [`.github/workflows/backup.yml`](../.github/workflows/backup.yml) takes a
+nightly `pg_dump` into a separate private repository. It is the only copy of
+the data that exists anywhere.
+
+It also keeps the project awake — free projects pause after a week of
+inactivity, and a nightly connection counts as activity.
+
+Setup, once:
+
+1. Create a **private** repo, e.g. `s7nket/GoatMat-backups`. It will hold every
+   bill, customer and phone number in plain text — private is not optional.
+2. In this repo, **Settings → Secrets and variables → Actions**:
+   - Variable `BACKUP_REPO` = `s7nket/GoatMat-backups`
+   - Secret `BACKUP_REPO_TOKEN` = a fine-grained personal access token with
+     **Contents: read and write** on the backups repo only
+   - Secret `SUPABASE_DB_URL` = the **Session pooler** connection string from
+     Supabase → Project Settings → Database, with the password filled in
+3. Run it once by hand from the Actions tab to check it works.
+
+Use the *Session pooler* string, not the direct connection. Supabase's direct
+connection is IPv6-only without the paid IPv4 add-on, and GitHub runners are
+IPv4 — the direct string simply fails to resolve.
+
+Restoring:
+
+```bash
+gunzip -c goatmat-2026-08-08.sql.gz | psql "<session-pooler-url>"
+```
+
+The dump is `--clean --if-exists`, so it drops and recreates the public schema.
+It restores over the top of whatever is there.
+
 ## Rules that keep the data honest
 
 - **Stock is never stored.** `stock_view` computes bought − sold. It cannot drift.
