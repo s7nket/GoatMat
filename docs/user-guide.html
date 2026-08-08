@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>GoatMat — How to use the app</title>
+<style>
+  /* Self-contained and printable: open in a browser, then Print > Save as PDF. */
+  @page { size: A4; margin: 16mm 14mm; }
+
+  :root {
+    --green: #137A4C;
+    --green-dark: #0A3D26;
+    --green-soft: #DCF3E7;
+    --ink: #0F1720;
+    --muted: #64748B;
+    --line: #E2E8F0;
+    --sunken: #F1F5F9;
+    --red: #DC2626;
+    --amber: #D97706;
+    --amber-soft: #FEF3C7;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0 auto;
+    max-width: 820px;
+    padding: 28px 24px 60px;
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  header {
+    border-bottom: 3px solid var(--green);
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+  }
+  h1 { font-size: 30px; margin: 0; letter-spacing: -0.5px; color: var(--green-dark); }
+  header p { margin: 6px 0 0; color: var(--muted); }
+
+  h2 {
+    font-size: 20px;
+    margin: 34px 0 4px;
+    letter-spacing: -0.3px;
+    page-break-after: avoid;
+  }
+  h2 .num {
+    display: inline-block;
+    width: 26px; height: 26px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    font-size: 13px;
+    line-height: 26px;
+    text-align: center;
+    vertical-align: 2px;
+  }
+  h2 + .lede { color: var(--muted); margin: 0 0 12px; }
+
+  h3 { font-size: 15px; margin: 20px 0 4px; }
+
+  ol.steps { margin: 10px 0; padding-left: 22px; }
+  ol.steps li { margin-bottom: 7px; }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--sunken);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .note, .warn {
+    margin: 14px 0;
+    padding: 12px 14px;
+    border-radius: 6px;
+    border-left: 3px solid var(--green);
+    background: var(--green-soft);
+    font-size: 14px;
+    page-break-inside: avoid;
+  }
+  .warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .note strong, .warn strong { display: block; margin-bottom: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th {
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    border-bottom: 1.5px solid #94A3B8;
+    padding: 8px 6px;
+  }
+  td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+  .contents {
+    background: var(--sunken);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+  }
+  .contents ol { margin: 6px 0 0; padding-left: 20px; columns: 2; column-gap: 28px; }
+  .contents li { margin-bottom: 3px; }
+
+  footer {
+    margin-top: 44px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GoatMat</h1>
+  <p>How to use the app — from first setup to daily work</p>
+</header>
+
+<div class="contents">
+  <strong>What is covered</strong>
+  <ol>
+    <li>Signing in</li>
+    <li>Setting up your business</li>
+    <li>Adding your products</li>
+    <li>Entering the stock you already own</li>
+    <li>Adding customers and suppliers</li>
+    <li>Recording a sale</li>
+    <li>Sending a bill</li>
+    <li>Recording a purchase</li>
+    <li>Taking payment against udhaar</li>
+    <li>Checking stock</li>
+    <li>Reports</li>
+    <li>Working without signal</li>
+    <li>Fixing a mistake</li>
+  </ol>
+</div>
+
+<h2><span class="num">1</span>Signing in</h2>
+<p class="lede">One account, one business. Nobody else can see your books.</p>
+<p>
+  Open the app and enter the email and password you were given. There is no
+  sign-up — accounts are created for you. You stay signed in afterwards; you
+  will not be asked again unless you sign out.
+</p>
+<div class="note">
+  <strong>Your data is yours alone</strong>
+  Other people using GoatMat have their own separate records. They cannot see
+  your products, customers, stock or bills, and you cannot see theirs.
+</div>
+
+<h2><span class="num">2</span>Setting up your business</h2>
+<p class="lede">Do this first — it appears on every bill you send.</p>
+<ol class="steps">
+  <li>Tap the <span class="tag">⚙ gear</span> at the top of the Home screen</li>
+  <li>Fill in your business name, your name, phone and address</li>
+  <li>Optionally change the closing line printed at the bottom of bills</li>
+  <li>Tap <span class="tag">Save details</span></li>
+</ol>
+<p>
+  These are the details your customer sees at the top of every invoice, so it
+  is worth getting them right before you send the first one.
+</p>
+
+<h2><span class="num">3</span>Adding your products</h2>
+<p class="lede">Each type of mat you deal in, added once.</p>
+<ol class="steps">
+  <li>Go to the <span class="tag">Stock</span> tab and tap <span class="tag">Products</span></li>
+  <li>Tap <span class="tag">Add</span></li>
+  <li>Enter the name, and the size and GSM if your supplier quotes them</li>
+  <li>Enter your usual selling rate per piece — this is filled in automatically on new sales, and can still be changed on any individual bill</li>
+  <li>Set <strong>Warn below</strong> to the number of pieces at which you want a low-stock warning</li>
+</ol>
+<div class="note">
+  <strong>What GSM means</strong>
+  Grams per square metre — the weight of the fabric, which in practice means
+  how thick and hard-wearing the mat is. A 90 GSM mat is thin and cheap;
+  200 GSM is heavy and lasts several seasons. It is only there to tell similar
+  products apart, so leave it blank if you do not use it.
+</div>
+
+<h2><span class="num">4</span>Entering the stock you already own</h2>
+<p class="lede">Do this once, before your first sale.</p>
+<p>
+  GoatMat works out your stock from your own bills — what you bought minus what
+  you sold. It is never typed in directly, which is why it can never quietly
+  drift away from reality. But that means the mats already sitting in your
+  godown need to be entered as a purchase, or the app thinks you have none.
+</p>
+<ol class="steps">
+  <li>Go to <span class="tag">Parties</span> → <span class="tag">Suppliers</span> → <span class="tag">Add</span> and create a supplier called <strong>Opening Stock</strong></li>
+  <li>Go to <span class="tag">Purchases</span> → <span class="tag">New</span></li>
+  <li>Choose <strong>Opening Stock</strong> as the supplier</li>
+  <li>Add each product with the number of pieces you actually have and the rate you paid</li>
+  <li>Set payment to <span class="tag">Cash</span> so it does not show as money you owe</li>
+  <li>Save</li>
+</ol>
+<p>Your stock is now correct, and stays correct on its own from here.</p>
+
+<div class="page-break"></div>
+
+<h2><span class="num">5</span>Adding customers and suppliers</h2>
+<p class="lede">Both live under Parties.</p>
+<ol class="steps">
+  <li>Go to <span class="tag">Parties</span></li>
+  <li>Switch between <span class="tag">Customers</span> and <span class="tag">Suppliers</span> at the top</li>
+  <li>Tap <span class="tag">Add</span> and enter at least a name</li>
+</ol>
+<p>
+  Add the phone number if you have it — it goes on their bills and makes it
+  easier to find them later. You can also add a party without leaving the bill
+  screen, at the bottom of the customer picker.
+</p>
+
+<h2><span class="num">6</span>Recording a sale</h2>
+<p class="lede">The thing you will do most.</p>
+<ol class="steps">
+  <li><span class="tag">Sales</span> → <span class="tag">New</span>, or <span class="tag">New sale</span> on the Home screen</li>
+  <li>Choose the customer</li>
+  <li>The date is today — change it if you are entering an older bill</li>
+  <li>Tap <span class="tag">Add item</span>, pick the product, set the pieces and rate</li>
+  <li>Add more items the same way</li>
+  <li>Choose how it was paid</li>
+  <li>Tap <span class="tag">Save sale</span></li>
+</ol>
+
+<h3>Payment options</h3>
+<table>
+  <tr><th>Option</th><th>Means</th></tr>
+  <tr><td>Cash, UPI, Bank</td><td>Paid in full now. Nothing outstanding.</td></tr>
+  <tr><td>Udhaar</td><td>On credit. Enter a part payment if they paid some, or leave it blank if they paid nothing.</td></tr>
+</table>
+
+<div class="warn">
+  <strong>Selling more than you have</strong>
+  If the pieces exceed your stock, an amber warning appears on that line. It
+  does not stop you — sometimes stock arrives before the purchase is entered —
+  but it usually means a purchase is missing.
+</div>
+
+<h2><span class="num">7</span>Sending a bill</h2>
+<p class="lede">A proper A4 invoice, on WhatsApp or printed.</p>
+<ol class="steps">
+  <li>Open the sale from the <span class="tag">Sales</span> list</li>
+  <li>Tap <span class="tag">Send</span> at the top right</li>
+  <li>Choose WhatsApp, or anything else in the share menu</li>
+</ol>
+<p>
+  The bill carries your business details, the customer's details, every item
+  with its rate, the total in words, and what remains due. It is a PDF, so it
+  prints exactly as it appears.
+</p>
+<div class="warn">
+  <strong>Needs a connection</strong>
+  A bill can only be sent once it has reached the server, because that is where
+  its number comes from. With no signal the app will say so.
+</div>
+
+<h2><span class="num">8</span>Recording a purchase</h2>
+<p class="lede">Same as a sale, in the other direction.</p>
+<ol class="steps">
+  <li><span class="tag">Purchases</span> → <span class="tag">New</span></li>
+  <li>Choose the supplier</li>
+  <li>Optionally enter the supplier's own bill number, so you can match it later</li>
+  <li>Add the items with the pieces and rate you paid</li>
+  <li>Choose how you paid, and save</li>
+</ol>
+<p>Your stock goes up by itself. There is nothing else to update.</p>
+
+<div class="page-break"></div>
+
+<h2><span class="num">9</span>Taking payment against udhaar</h2>
+<p class="lede">When someone settles an old balance.</p>
+<ol class="steps">
+  <li>Go to <span class="tag">Parties</span> and tap the person</li>
+  <li>Their balance is at the top, with every bill and payment below it</li>
+  <li>Tap <span class="tag">Record payment received</span> — or <strong>made</strong>, for a supplier</li>
+  <li>Enter the amount, or tap the button to clear the balance in full</li>
+  <li>Choose cash, UPI or bank, and save</li>
+</ol>
+<p>
+  The screen tells you what will still be outstanding afterwards. If you enter
+  more than is owed, it warns you — the balance would swing the other way, which
+  is occasionally right and usually a typing mistake.
+</p>
+
+<h2><span class="num">10</span>Checking stock</h2>
+<p class="lede">Always current, because it comes from your bills.</p>
+<p>
+  The <span class="tag">Stock</span> tab lists every product with the pieces
+  remaining. Green means comfortable, red means none left. Anything at or below
+  the <strong>Warn below</strong> figure you set also appears under
+  <strong>Low stock</strong> on the Home screen.
+</p>
+
+<h2><span class="num">11</span>Reports</h2>
+<p class="lede">Any period, going back as far as you like.</p>
+<p>
+  The Home screen covers today, yesterday, the last seven days and this month.
+  For anything older, tap the <span class="tag">📊 chart</span> icon at the top
+  of Home.
+</p>
+<table>
+  <tr><th>Figure</th><th>What it tells you</th></tr>
+  <tr><td>Sold / Bought</td><td>Value billed in the period</td></tr>
+  <tr><td>Sold minus bought</td><td>Cash flow — <strong>not</strong> profit</td></tr>
+  <tr><td>Cash collected / paid out</td><td>Money that actually changed hands, including settlements of older bills</td></tr>
+  <tr><td>Product movement</td><td>Pieces sold and bought, per product</td></tr>
+  <tr><td>Top customers</td><td>Your largest customers by value</td></tr>
+</table>
+<div class="warn">
+  <strong>Why it is not profit</strong>
+  Mats bought this month often sell the next, so the two figures do not line up
+  within one period. Expenses such as transport and labour are also not
+  recorded yet. Treat it as cash movement, not earnings.
+</div>
+
+<h2><span class="num">12</span>Working without signal</h2>
+<p class="lede">The app keeps working in the field.</p>
+<p>
+  Sales, purchases, products, parties and payments can all be recorded with no
+  network. They save on the phone straight away, your stock and balances update
+  on screen, and everything uploads on its own when a connection returns.
+</p>
+<ul>
+  <li>A yellow strip at the top means you are offline</li>
+  <li>Unsent entries show as <strong>Waiting to send</strong></li>
+  <li>They survive closing the app or restarting the phone</li>
+  <li>Once uploaded, bills receive their proper number</li>
+</ul>
+<p>
+  Sending a bill, cancelling one, and running reports all need a connection.
+  The app says so rather than failing quietly.
+</p>
+
+<h2><span class="num">13</span>Fixing a mistake</h2>
+<p class="lede">Bills are cancelled, never edited.</p>
+<p>
+  Open the bill and tap <span class="tag">Void bill</span>. It stops counting
+  immediately: stock goes back, the balance corrects itself, and it disappears
+  from reports. Then enter the correct bill fresh.
+</p>
+<p>
+  A voided bill is kept rather than deleted, so there is always a record of what
+  happened. Products and parties work the same way — <strong>Archive</strong>
+  hides them from new bills without touching anything already recorded.
+</p>
+
+<footer>
+  GoatMat — purchases, sales, stock and udhaar. Updates arrive on their own;
+  just open the app.
+</footer>
+
+</body>
+</html>
