@@ -12,15 +12,14 @@
       "policy": "appVersion"
     },
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.goatmat.app"
     },
     "android": {
       "package": "com.goatmat.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0F5C39",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#065C35",
+        "foregroundImage": "./assets/images/icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -29,9 +28,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0F5C39",
+          "backgroundColor": "#0A3D26",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 180
         }
       ],
       "@react-native-community/datetimepicker",
