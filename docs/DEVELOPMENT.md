@@ -207,10 +207,10 @@ inactivity, and a nightly connection counts as activity.
 
 Setup, once:
 
-1. Create a **private** repo, e.g. `s7nket/GoatMat-backups`. It will hold every
+1. Create a **private** repo, e.g. `s7nket/GoatMat-Backup`. It will hold every
    bill, customer and phone number in plain text — private is not optional.
 2. In this repo, **Settings → Secrets and variables → Actions**:
-   - Variable `BACKUP_REPO` = `s7nket/GoatMat-backups`
+   - Variable `BACKUP_REPO` = `s7nket/GoatMat-Backup`
    - Secret `BACKUP_REPO_TOKEN` = a fine-grained personal access token with
      **Contents: read and write** on the backups repo only
    - Secret `SUPABASE_DB_URL` = the **Session pooler** connection string from
