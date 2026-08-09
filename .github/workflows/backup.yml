@@ -20,8 +20,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # A missing secret otherwise surfaces as "Input required and not
+      # supplied: token" from inside an action, which says nothing about which
+      # one or where to set it.
+      - name: Check the credentials are present
+        env:
+          BACKUP_REPO: ${{ vars.BACKUP_REPO }}
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          missing=0
+          [ -n "$BACKUP_REPO" ]       || { echo "::error::Variable BACKUP_REPO is not set (Settings > Secrets and variables > Actions > Variables)."; missing=1; }
+          [ -n "$BACKUP_REPO_TOKEN" ] || { echo "::error::Secret BACKUP_REPO_TOKEN is not set (Settings > Secrets and variables > Actions > Secrets)."; missing=1; }
+          [ -n "$SUPABASE_DB_URL" ]   || { echo "::error::Secret SUPABASE_DB_URL is not set (Settings > Secrets and variables > Actions > Secrets)."; missing=1; }
+          [ "$missing" -eq 0 ] || exit 1
+          echo "Backing up into $BACKUP_REPO"
+
       - name: Check out the backup repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ vars.BACKUP_REPO }}
           token: ${{ secrets.BACKUP_REPO_TOKEN }}
