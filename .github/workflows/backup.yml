@@ -57,14 +57,26 @@ jobs:
           path: backups
 
       - name: Install a matching pg_dump
-        # Ubuntu ships an older client than Supabase runs; a version mismatch
-        # makes pg_dump refuse outright.
+        # Supabase runs Postgres 17 and pg_dump refuses to dump a server newer
+        # than itself. Bump PG_MAJOR when Supabase upgrades -- the failure is
+        # loud, so it cannot pass unnoticed.
+        env:
+          PG_MAJOR: '17'
         run: |
-          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc > /dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client-17
-          pg_dump --version
+          sudo apt-get install -y --no-install-recommends "postgresql-client-$PG_MAJOR"
+
+          # /usr/bin/pg_dump is Ubuntu's wrapper and resolves to whichever
+          # client version it feels like -- on this runner, the preinstalled 16.
+          # The versioned binary is the only way to be sure which one runs.
+          echo "PGDUMP=/usr/lib/postgresql/$PG_MAJOR/bin/pg_dump" >> "$GITHUB_ENV"
+          "/usr/lib/postgresql/$PG_MAJOR/bin/pg_dump" --version
 
       - name: Dump the database
         env:
@@ -76,7 +88,7 @@ jobs:
           mkdir -p backups/dumps
           STAMP=$(date -u +'%Y-%m-%d')
 
-          pg_dump "$DATABASE_URL" \
+          "$PGDUMP" "$DATABASE_URL" \
             --clean --if-exists --no-owner --no-privileges \
             --schema=public \
             --file="backups/dumps/goatmat-$STAMP.sql"
