@@ -202,6 +202,11 @@ so [`.github/workflows/backup.yml`](../.github/workflows/backup.yml) takes a
 nightly `pg_dump` into a separate private repository. It is the only copy of
 the data that exists anywhere.
 
+Nothing is ever pruned — the point is that the history reaches back further
+than anyone thinks to look. The dumps are left uncompressed so git can delta
+them between daily commits; a gzipped file is opaque, so each run would store a
+full new copy and the repository would grow by the whole dump every day.
+
 It also keeps the project awake — free projects pause after a week of
 inactivity, and a nightly connection counts as activity.
 
@@ -224,7 +229,7 @@ IPv4 — the direct string simply fails to resolve.
 Restoring:
 
 ```bash
-gunzip -c goatmat-2026-08-08.sql.gz | psql "<session-pooler-url>"
+psql "<session-pooler-url>" -f goatmat-2026-08-09.sql
 ```
 
 The dump is `--clean --if-exists`, so it drops and recreates the public schema.

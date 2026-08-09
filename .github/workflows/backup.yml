@@ -88,14 +88,17 @@ jobs:
           mkdir -p backups/dumps
           STAMP=$(date -u +'%Y-%m-%d')
 
+          # Left uncompressed on purpose. These are kept forever, and git can
+          # delta-compress plain SQL between daily commits -- one day's trade
+          # changes very little. A gzipped file is opaque, so every run would
+          # store a whole new copy and the repository would grow by the full
+          # dump size every single day.
           "$PGDUMP" "$DATABASE_URL" \
             --clean --if-exists --no-owner --no-privileges \
             --schema=public \
             --file="backups/dumps/goatmat-$STAMP.sql"
 
-          gzip -f "backups/dumps/goatmat-$STAMP.sql"
-
-          SIZE=$(stat -c%s "backups/dumps/goatmat-$STAMP.sql.gz")
+          SIZE=$(stat -c%s "backups/dumps/goatmat-$STAMP.sql")
           echo "Dump size: $SIZE bytes"
 
           # A dump this small means the connection worked but returned nothing.
@@ -105,8 +108,9 @@ jobs:
             exit 1
           fi
 
-      - name: Drop dumps older than 90 days
-        run: find backups/dumps -name '*.sql.gz' -mtime +90 -delete
+      # Nothing is pruned. These are the business's books from the first bill
+      # onwards, and the whole point is that the history goes back further than
+      # anyone thinks to look.
 
       - name: Commit
         working-directory: backups
