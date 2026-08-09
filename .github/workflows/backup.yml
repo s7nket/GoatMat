@@ -34,6 +34,19 @@ jobs:
           [ -n "$BACKUP_REPO_TOKEN" ] || { echo "::error::Secret BACKUP_REPO_TOKEN is not set (Settings > Secrets and variables > Actions > Secrets)."; missing=1; }
           [ -n "$SUPABASE_DB_URL" ]   || { echo "::error::Secret SUPABASE_DB_URL is not set (Settings > Secrets and variables > Actions > Secrets)."; missing=1; }
           [ "$missing" -eq 0 ] || exit 1
+
+          # Supabase's direct connection (db.<ref>.supabase.co) is IPv6-only
+          # without the paid IPv4 add-on, and GitHub runners are IPv4. It fails
+          # eighteen seconds later with "Network is unreachable", which reads
+          # like an outage rather than the wrong connection string.
+          case "$SUPABASE_DB_URL" in
+            *pooler.supabase.com*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL is not a pooler connection string. Use Supabase > Project Settings > Database > Connection string > Session pooler. The host must contain pooler.supabase.com, and the username includes the project ref (postgres.<ref>)."
+              exit 1
+              ;;
+          esac
+
           echo "Backing up into $BACKUP_REPO"
 
       - name: Check out the backup repository
