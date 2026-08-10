@@ -266,6 +266,7 @@ export type BillLine = {
 export type BillDetail = BillListRow & {
   notes: string | null;
   supplier_ref?: string | null;
+  reference: string | null;
   voided_reason: string | null;
   items: BillLine[];
 };
@@ -320,7 +321,7 @@ export function useBill(kind: 'sale' | 'purchase', id: string | undefined) {
       const { data, error } = await supabase
         .from(table)
         .select(
-          `${LIST_COLUMNS}, notes, voided_reason${extra}, ` +
+          `${LIST_COLUMNS}, notes, reference, voided_reason${extra}, ` +
             `items:${itemTable}(id, qty, rate, amount, product:products(id, name, size, gsm))`,
         )
         .eq('id', id!)
@@ -496,6 +497,8 @@ export type LedgerEntry = {
   amount: number;
   label: string;
   note: string | null;
+  /** UTR or cheque number, when the payment had one. */
+  reference?: string | null;
   pending?: boolean;
 };
 
@@ -510,7 +513,7 @@ export function usePartyLedger(partyId: string | undefined, kind: PartyKind | un
     enabled: !!partyId && partyId !== 'new',
     queryFn: async (): Promise<LedgerEntry[]> => {
       const isSupplier = kind === 'supplier';
-      const columns = 'id, bill_no, bill_date, total_amount, paid_amount, notes';
+      const columns = 'id, bill_no, bill_date, total_amount, paid_amount, notes, reference';
 
       // Written out per table rather than parameterised: the table and its
       // party column have to agree, and spelling both out is what lets the
@@ -525,7 +528,7 @@ export function usePartyLedger(partyId: string | undefined, kind: PartyKind | un
           : supabase.from('sales').select(columns).eq('customer_id', partyId!).is('voided_at', null),
         supabase
           .from('payments')
-          .select('id, pay_date, amount, direction, mode, note')
+          .select('id, pay_date, amount, direction, mode, note, reference')
           .eq('party_id', partyId!)
           .is('voided_at', null),
       ]);
@@ -546,6 +549,7 @@ export function usePartyLedger(partyId: string | undefined, kind: PartyKind | un
         amount: Number(bill.total_amount),
         label: isSupplier ? 'Purchase' : 'Sale',
         note: bill.notes,
+        reference: bill.reference,
       }));
 
       const payments: LedgerEntry[] = (paymentsRes.data ?? []).map((payment) => ({
@@ -556,6 +560,7 @@ export function usePartyLedger(partyId: string | undefined, kind: PartyKind | un
         amount: Number(payment.amount),
         label: payment.direction === 'in' ? 'Received' : 'Paid',
         note: payment.note,
+        reference: payment.reference,
       }));
 
       return [...bills, ...payments].sort((a, b) => b.date.localeCompare(a.date));

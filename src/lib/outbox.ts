@@ -54,6 +54,8 @@ export type OutboxJob =
         totalAmount: number;
         notes: string | null;
         supplierRef: string | null;
+        /** UTR or cheque number. Only meaningful for UPI and bank. */
+        reference: string | null;
         items: BillItemInput[];
       };
     })
@@ -89,6 +91,7 @@ export type OutboxJob =
         direction: 'in' | 'out';
         mode: 'cash' | 'upi' | 'bank' | null;
         note: string | null;
+        reference: string | null;
       };
     });
 
@@ -222,6 +225,7 @@ async function send(job: OutboxJob): Promise<void> {
       p_payment_mode: job.payload.paymentMode,
       p_paid_amount: job.payload.paidAmount,
       p_notes: job.payload.notes,
+      p_reference: job.payload.reference,
       p_items: job.payload.items,
     });
     if (error) throw error;
@@ -237,6 +241,7 @@ async function send(job: OutboxJob): Promise<void> {
       p_payment_mode: job.payload.paymentMode,
       p_paid_amount: job.payload.paidAmount,
       p_notes: job.payload.notes,
+      p_reference: job.payload.reference,
       p_items: job.payload.items,
     });
     if (error) throw error;
@@ -266,6 +271,7 @@ async function send(job: OutboxJob): Promise<void> {
       p_direction: job.payload.direction,
       p_mode: job.payload.mode,
       p_note: job.payload.note,
+      p_reference: job.payload.reference,
     });
     if (error) throw error;
     return;

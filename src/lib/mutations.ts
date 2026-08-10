@@ -59,6 +59,8 @@ export type BillInput = {
   notes: string | null;
   /** Purchases only: the supplier's own bill number. */
   supplierRef?: string | null;
+  /** UTR or cheque number. Only collected for UPI and bank. */
+  reference: string | null;
   items: BillItemInput[];
 };
 
@@ -95,6 +97,7 @@ export function useCreateBill(kind: 'sale' | 'purchase') {
           totalAmount: input.totalAmount,
           notes: input.notes,
           supplierRef: input.supplierRef ?? null,
+          reference: input.reference,
           items: input.items.map((item) => ({
             product_id: item.product_id,
             qty: item.qty,
@@ -132,6 +135,7 @@ export type PaymentInput = {
   direction: 'in' | 'out';
   mode: 'cash' | 'upi' | 'bank' | null;
   note: string | null;
+  reference: string | null;
 };
 
 /** Settling an old balance, as opposed to paying at the moment of the bill. */
@@ -155,6 +159,7 @@ export function useCreatePayment() {
           direction: input.direction,
           mode: input.mode,
           note: input.note,
+          reference: input.reference,
         },
       });
       return id;

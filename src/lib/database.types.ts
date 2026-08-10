@@ -51,6 +51,8 @@ export type Purchase = Audit & {
   paid_amount: number;
   payment_mode: PaymentMode | null;
   notes: string | null;
+  /** UTR, cheque number or bank reference. Free text, never validated. */
+  reference: string | null;
   voided_at: string | null;
   voided_reason: string | null;
 };
@@ -73,6 +75,8 @@ export type Sale = Audit & {
   paid_amount: number;
   payment_mode: PaymentMode | null;
   notes: string | null;
+  /** UTR, cheque number or bank reference. Free text, never validated. */
+  reference: string | null;
   voided_at: string | null;
   voided_reason: string | null;
 };
@@ -94,6 +98,8 @@ export type Payment = Audit & {
   direction: 'in' | 'out';
   mode: 'cash' | 'upi' | 'bank' | null;
   note: string | null;
+  /** UTR, cheque number or bank reference. Free text, never validated. */
+  reference: string | null;
   voided_at: string | null;
 };
 
@@ -204,6 +210,7 @@ export type Database = {
           p_payment_mode: PaymentMode | null;
           p_paid_amount: number;
           p_notes: string | null;
+          p_reference: string | null;
           p_items: BillItemInput[];
         };
         Returns: string;
@@ -217,6 +224,7 @@ export type Database = {
           p_payment_mode: PaymentMode | null;
           p_paid_amount: number;
           p_notes: string | null;
+          p_reference: string | null;
           p_items: BillItemInput[];
         };
         Returns: string;
@@ -253,6 +261,7 @@ export type Database = {
           p_direction: 'in' | 'out';
           p_mode: 'cash' | 'upi' | 'bank' | null;
           p_note: string | null;
+          p_reference: string | null;
         };
         Returns: string;
       };

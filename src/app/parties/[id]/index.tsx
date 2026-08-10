@@ -52,6 +52,7 @@ export default function PartyDetailScreen() {
         amount: job.payload.amount,
         label: job.payload.direction === 'in' ? 'Received' : 'Paid',
         note: job.payload.note,
+        reference: job.payload.reference,
         pending: true,
       })),
       ...[...pendingSales, ...pendingPurchases]
@@ -179,9 +180,13 @@ export default function PartyDetailScreen() {
                   subtitle={
                     entry.pending
                       ? `${shortDate(entry.date)} · Waiting to send`
-                      : entry.note
-                        ? `${shortDate(entry.date)} · ${entry.note}`
-                        : prettyDate(entry.date)
+                      : // The reference earns the subtitle over the note: it is
+                        // what gets quoted when a payment is disputed.
+                        entry.reference
+                        ? `${shortDate(entry.date)} · ${entry.reference}`
+                        : entry.note
+                          ? `${shortDate(entry.date)} · ${entry.note}`
+                          : prettyDate(entry.date)
                   }
                   value={money(entry.amount)}
                   valueTone={entry.pending ? 'muted' : entry.kind === 'payment' ? 'success' : 'default'}

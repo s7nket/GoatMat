@@ -17,6 +17,7 @@ import {
   SelectField,
   Text,
 } from '@/components/ui';
+import { referenceLabelFor } from '@/features/bill-entry';
 import { money, prettyDate, toISODate } from '@/lib/format';
 import { useCreatePayment } from '@/lib/mutations';
 import { useParty, usePartyBalances } from '@/lib/queries';
@@ -43,6 +44,7 @@ export default function RecordPaymentScreen() {
   const [payDate, setPayDate] = useState(new Date());
   const [showDate, setShowDate] = useState(false);
   const [mode, setMode] = useState<Mode>('cash');
+  const [reference, setReference] = useState('');
   const [note, setNote] = useState('');
   const [amountError, setAmountError] = useState<string | null>(null);
   const submitting = useRef(false);
@@ -52,6 +54,7 @@ export default function RecordPaymentScreen() {
   const outstanding = Math.abs(balance);
   const entered = Number(amount.trim()) || 0;
   const remaining = outstanding - entered;
+  const referenceLabel = referenceLabelFor(mode);
 
   async function handleSave() {
     if (submitting.current) return;
@@ -73,6 +76,7 @@ export default function RecordPaymentScreen() {
         direction: isCustomer ? 'in' : 'out',
         mode,
         note: note.trim() || null,
+        reference: referenceLabel ? reference.trim() || null : null,
       });
       router.back();
     } catch (e) {
@@ -152,6 +156,19 @@ export default function RecordPaymentScreen() {
           <Segmented value={mode} onChange={setMode} options={MODES} />
 
           <Card style={styles.group}>
+            {/* Cash leaves no trace, so there is nothing to reference. */}
+            {referenceLabel ? (
+              <Input
+                label={referenceLabel}
+                placeholder="Optional"
+                hint="What you would quote if this payment is ever questioned."
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={reference}
+                onChangeText={setReference}
+              />
+            ) : null}
+
             <Input
               label="Note"
               placeholder="Optional — reference, who handed it over"

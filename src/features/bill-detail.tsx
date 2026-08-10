@@ -203,6 +203,18 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
           ) : null}
         </Card>
 
+        {bill.reference ? (
+          <Card padded={false}>
+            <ListRow
+              icon="hash"
+              title={bill.payment_mode === 'upi' ? 'UTR / transaction ID' : 'Transaction reference'}
+              subtitle="Quote this if the payment is ever questioned"
+              value={bill.reference}
+              chevron={false}
+            />
+          </Card>
+        ) : null}
+
         {bill.notes ? (
           <Card style={styles.notes}>
             <Text variant="overline" tone="muted">

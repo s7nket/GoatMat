@@ -311,6 +311,17 @@ export function buildBillHtml({
     </div>
 
     ${
+      bill.reference
+        ? `<div class="notes">
+             <div class="label">${
+               bill.payment_mode === 'upi' ? 'UPI reference (UTR)' : 'Transaction reference'
+             }</div>
+             <div class="strong">${escapeHtml(bill.reference)}</div>
+           </div>`
+        : ''
+    }
+
+    ${
       bill.notes
         ? `<div class="notes">
              <div class="label">Note</div>

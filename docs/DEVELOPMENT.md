@@ -75,7 +75,8 @@ Check with `node --version` and upgrade from https://nodejs.org if needed.
    [`004_business_profile.sql`](../supabase/004_business_profile.sql),
    [`005_idempotent_bills.sql`](../supabase/005_idempotent_bills.sql),
    [`006_multi_tenant.sql`](../supabase/006_multi_tenant.sql),
-   [`007_payments.sql`](../supabase/007_payments.sql).
+   [`007_payments.sql`](../supabase/007_payments.sql),
+   [`008_payment_reference.sql`](../supabase/008_payment_reference.sql).
    Run them in order. All are safe to re-run.
 3. Go to **Authentication → Providers → Email** and turn **off** "Enable sign-ups".
    This app has no sign-up screen — accounts only exist because you made them.

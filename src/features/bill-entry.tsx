@@ -47,6 +47,16 @@ function toNumber(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * What a transaction of this kind is identified by, or null when there is
+ * nothing to identify. Cash leaves no trace; udhaar has not moved yet.
+ */
+export function referenceLabelFor(mode: PaymentMode): string | null {
+  if (mode === 'upi') return 'UTR / transaction ID';
+  if (mode === 'bank') return 'Cheque no. / transaction ref';
+  return null;
+}
+
 export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const isSale = kind === 'sale';
   const router = useRouter();
@@ -65,6 +75,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paidAmount, setPaidAmount] = useState('');
+  const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
 
   const [partyOpen, setPartyOpen] = useState(false);
@@ -88,6 +99,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const balance = total - paid;
 
   const partyName = parties.find((p) => p.id === partyId)?.name ?? null;
+  const referenceLabel = referenceLabelFor(paymentMode);
 
   const partyOptions: PickerOption[] = parties.map((party) => ({
     id: party.id,
@@ -160,6 +172,9 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         totalAmount: total,
         notes: notes.trim() || null,
         supplierRef: isSale ? null : supplierRef.trim() || null,
+        // Dropped if the mode changed after typing -- a UTR on a cash bill is
+        // a leftover, not a fact.
+        reference: referenceLabel ? reference.trim() || null : null,
         items: usable.map((line) => ({
           product_id: line.productId,
           qty: Math.round(toNumber(line.qty)),
@@ -298,6 +313,20 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
                 hint="Leave empty if nothing was paid yet."
                 value={paidAmount}
                 onChangeText={setPaidAmount}
+              />
+            ) : null}
+
+            {/* Cash leaves no trace and udhaar has not moved yet, so neither
+                has anything to reference. */}
+            {referenceLabel ? (
+              <Input
+                label={referenceLabel}
+                placeholder="Optional"
+                hint="Printed on the bill, so it can be checked later."
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={reference}
+                onChangeText={setReference}
               />
             ) : null}
 
