@@ -79,6 +79,10 @@ export default function PartiesScreen() {
         <Card padded={false}>
           {data.map((party, index) => {
             const owed = Number(party.balance ?? 0);
+            const settled = Math.abs(owed) < 0.005;
+            // A customer in credit has paid ahead -- that is an advance being
+            // held, not money owed to them. Only a supplier balance is a debt.
+            const advance = !settled && owed < 0 && kind === 'customer';
             return (
               <View key={party.id}>
                 {index > 0 ? <RowDivider /> : null}
@@ -86,9 +90,11 @@ export default function PartiesScreen() {
                   leading={<Avatar name={party.name} />}
                   title={party.name}
                   subtitle={party.phone ?? 'No phone saved'}
-                  value={owed === 0 ? 'Settled' : money(Math.abs(owed))}
-                  valueTone={owed === 0 ? 'muted' : owed > 0 ? 'success' : 'danger'}
-                  valueCaption={owed === 0 ? undefined : owed > 0 ? 'to receive' : 'to pay'}
+                  value={settled ? 'Settled' : money(Math.abs(owed))}
+                  valueTone={settled ? 'muted' : owed > 0 ? 'success' : advance ? 'default' : 'danger'}
+                  valueCaption={
+                    settled ? undefined : owed > 0 ? 'to receive' : advance ? 'in advance' : 'to pay'
+                  }
                   onPress={() =>
                     router.push({ pathname: '/parties/[id]', params: { id: party.id } })
                   }

@@ -19,10 +19,25 @@ import {
   SectionHeader,
   Text,
 } from '@/components/ui';
+import type { PartyKind } from '@/lib/database.types';
 import { money, prettyDate, shortDate } from '@/lib/format';
 import { usePendingBills, usePendingPayments } from '@/lib/offline';
 import { type LedgerEntry, useParty, usePartyBalances, usePartyLedger } from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
+
+/**
+ * A negative balance means different things by party.
+ *
+ * For a supplier it is the ordinary case: you have taken stock and not paid
+ * for it yet. For a customer it can only have come from them paying more than
+ * they owed, which is an advance you are holding -- calling that "you owe
+ * them" reads as a debt that does not exist.
+ */
+export function balanceLabel(kind: PartyKind, balance: number): string {
+  if (Math.abs(balance) < 0.005) return 'Balance';
+  if (balance > 0) return kind === 'supplier' ? 'Overpaid — held with them' : 'They owe you';
+  return kind === 'supplier' ? 'You owe them' : 'Advance held for them';
+}
 
 export default function PartyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -121,7 +136,7 @@ export default function PartyDetailScreen() {
           <Avatar name={party.name} size={48} />
           <View style={styles.summaryText}>
             <Text variant="label" tone="secondary">
-              {settled ? 'Balance' : balance > 0 ? 'They owe you' : 'You owe them'}
+              {balanceLabel(party.kind, balance)}
             </Text>
             <Text
               variant="amountLarge"

@@ -51,12 +51,14 @@ export default function RecordPaymentScreen() {
 
   const balance = Number(balances.find((row) => row.id === id)?.balance ?? 0);
   const isCustomer = party?.kind !== 'supplier';
-  const outstanding = Math.abs(balance);
+  // What they still owe, never negative. Taking the absolute value would show
+  // a customer already in credit as though they owed that advance back.
+  const outstanding = Math.max(0, isCustomer ? balance : -balance);
   const entered = Number(amount.trim()) || 0;
   const remaining = outstanding - entered;
   const referenceLabel = referenceLabelFor(mode);
 
-  async function handleSave() {
+  function handleSave() {
     if (submitting.current) return;
 
     if (entered <= 0) {
@@ -65,6 +67,28 @@ export default function RecordPaymentScreen() {
     }
     setAmountError(null);
 
+    // Taking more than is owed is legitimate -- an advance against the next
+    // lot -- but it is far more often a typed digit too many, and it silently
+    // flips the balance the other way. Make it a decision, not a slip.
+    if (entered > outstanding) {
+      const excess = entered - outstanding;
+      Alert.alert(
+        'More than is owed',
+        outstanding > 0
+          ? `${party?.name ?? 'They'} owes ${money(outstanding)}. Taking ${money(entered)} leaves ${money(excess)} as an advance.`
+          : `Nothing is outstanding, so all ${money(entered)} will be held as an advance.`,
+        [
+          { text: 'Change amount', style: 'cancel' },
+          { text: 'Record as advance', onPress: save },
+        ],
+      );
+      return;
+    }
+
+    void save();
+  }
+
+  async function save() {
     submitting.current = true;
     try {
       await createPayment.mutateAsync({
@@ -140,7 +164,7 @@ export default function RecordPaymentScreen() {
                   ? `${money(remaining)} will remain outstanding.`
                   : remaining === 0
                     ? 'This settles the balance in full.'
-                    : `${money(-remaining)} more than owed — the balance will go the other way.`}
+                    : `${money(-remaining)} more than owed — held as an advance against future bills.`}
               </Text>
             ) : null}
 
