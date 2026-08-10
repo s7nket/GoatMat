@@ -22,7 +22,13 @@ import {
 import type { PartyKind } from '@/lib/database.types';
 import { money, prettyDate, shortDate } from '@/lib/format';
 import { usePendingBills, usePendingPayments } from '@/lib/offline';
-import { type LedgerEntry, useParty, usePartyBalances, usePartyLedger } from '@/lib/queries';
+import {
+  type LedgerEntry,
+  paymentLabel,
+  useParty,
+  usePartyBalances,
+  usePartyLedger,
+} from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 /**
@@ -53,6 +59,9 @@ export default function PartyDetailScreen() {
 
   const balance = Number(balances.find((row) => row.id === id)?.balance ?? 0);
   const isCustomer = party?.kind !== 'supplier';
+  // Money of theirs sitting with you: a customer who paid ahead, or a supplier
+  // you overpaid. Never negative.
+  const held = Math.max(0, isCustomer ? -balance : balance);
 
   // Unsent entries are shown in the same list as the rest of the history,
   // marked, rather than appearing only once they reach the server -- otherwise
@@ -65,7 +74,7 @@ export default function PartyDetailScreen() {
         date: job.payload.payDate,
         delta: (job.payload.direction === 'in' ? -1 : 1) * job.payload.amount,
         amount: job.payload.amount,
-        label: job.payload.direction === 'in' ? 'Received' : 'Paid',
+        label: paymentLabel(party?.kind, job.payload.direction),
         note: job.payload.note,
         reference: job.payload.reference,
         pending: true,
@@ -86,7 +95,7 @@ export default function PartyDetailScreen() {
     ];
 
     return [...pending, ...(ledger.data ?? [])].sort((a, b) => b.date.localeCompare(a.date));
-  }, [pendingPayments, pendingSales, pendingPurchases, ledger.data, id]);
+  }, [pendingPayments, pendingSales, pendingPurchases, ledger.data, id, party?.kind]);
 
   if (partyPending) {
     return (
@@ -158,6 +167,20 @@ export default function PartyDetailScreen() {
           icon={isCustomer ? 'arrow-down-left' : 'arrow-up-right'}
           onPress={() => router.push({ pathname: '/parties/[id]/payment', params: { id } })}
         />
+
+        {/* Only when money is actually being held -- there is nothing to
+            refund otherwise, and an always-visible button invites recording
+            one against a balance that does not exist. */}
+        {held > 0 ? (
+          <Button
+            label={isCustomer ? `Refund ${money(held)} advance` : `Collect ${money(held)} back`}
+            variant="secondary"
+            icon={isCustomer ? 'corner-up-left' : 'corner-down-left'}
+            onPress={() =>
+              router.push({ pathname: '/parties/[id]/payment', params: { id, refund: '1' } })
+            }
+          />
+        ) : null}
 
         <SectionHeader title="History" />
 

@@ -32,7 +32,12 @@ const MODES: { value: Mode; label: string }[] = [
 ];
 
 export default function RecordPaymentScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `refund` reverses the direction: money going back to a customer who paid
+  // ahead and changed their mind, or coming back from a supplier who was
+  // overpaid. Recorded as its own entry rather than by voiding the original --
+  // two things happened, and the ledger should say both.
+  const { id, refund } = useLocalSearchParams<{ id: string; refund?: string }>();
+  const isRefund = refund === '1';
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -51,12 +56,22 @@ export default function RecordPaymentScreen() {
 
   const balance = Number(balances.find((row) => row.id === id)?.balance ?? 0);
   const isCustomer = party?.kind !== 'supplier';
-  // What they still owe, never negative. Taking the absolute value would show
-  // a customer already in credit as though they owed that advance back.
-  const outstanding = Math.max(0, isCustomer ? balance : -balance);
+
+  // Normally: what they still owe. On a refund: what is being held that could
+  // be given back. Never negative -- taking the absolute value would show a
+  // customer already in credit as though they owed that advance back.
+  const owed = Math.max(0, isCustomer ? balance : -balance);
+  const held = Math.max(0, isCustomer ? -balance : balance);
+  const outstanding = isRefund ? held : owed;
+
   const entered = Number(amount.trim()) || 0;
   const remaining = outstanding - entered;
   const referenceLabel = referenceLabelFor(mode);
+
+  // A customer paying is money in and a refund to them is money out; for a
+  // supplier both are reversed. Derived rather than asked -- a payment
+  // recorded in the wrong direction doubles the error in the balance.
+  const direction: 'in' | 'out' = isCustomer ? (isRefund ? 'out' : 'in') : isRefund ? 'in' : 'out';
 
   function handleSave() {
     if (submitting.current) return;
@@ -67,19 +82,25 @@ export default function RecordPaymentScreen() {
     }
     setAmountError(null);
 
-    // Taking more than is owed is legitimate -- an advance against the next
-    // lot -- but it is far more often a typed digit too many, and it silently
-    // flips the balance the other way. Make it a decision, not a slip.
+    // Going past the balance is legitimate in both directions -- an advance
+    // against the next lot, or refunding more than was held because a bill is
+    // being reversed too -- but it is far more often a typed digit too many,
+    // and it silently flips the balance the other way.
     if (entered > outstanding) {
       const excess = entered - outstanding;
+
       Alert.alert(
-        'More than is owed',
-        outstanding > 0
-          ? `${party?.name ?? 'They'} owes ${money(outstanding)}. Taking ${money(entered)} leaves ${money(excess)} as an advance.`
-          : `Nothing is outstanding, so all ${money(entered)} will be held as an advance.`,
+        isRefund ? 'More than is held' : 'More than is owed',
+        isRefund
+          ? outstanding > 0
+            ? `${money(outstanding)} is held for ${party?.name ?? 'them'}. Returning ${money(entered)} leaves ${money(excess)} owed to you.`
+            : `Nothing is held, so all ${money(entered)} will be owed back to you.`
+          : outstanding > 0
+            ? `${party?.name ?? 'They'} owes ${money(outstanding)}. Taking ${money(entered)} leaves ${money(excess)} as an advance.`
+            : `Nothing is outstanding, so all ${money(entered)} will be held as an advance.`,
         [
           { text: 'Change amount', style: 'cancel' },
-          { text: 'Record as advance', onPress: save },
+          { text: isRefund ? 'Refund anyway' : 'Record as advance', onPress: save },
         ],
       );
       return;
@@ -96,8 +117,7 @@ export default function RecordPaymentScreen() {
         partyName: party?.name ?? 'Unknown',
         payDate: toISODate(payDate),
         amount: entered,
-        // A customer paying is money in; settling with a supplier is money out.
-        direction: isCustomer ? 'in' : 'out',
+        direction,
         mode,
         note: note.trim() || null,
         reference: referenceLabel ? reference.trim() || null : null,
@@ -121,7 +141,15 @@ export default function RecordPaymentScreen() {
   return (
     <Screen>
       <FormHeader
-        title={isCustomer ? 'Payment received' : 'Payment made'}
+        title={
+          isRefund
+            ? isCustomer
+              ? 'Refund advance'
+              : 'Refund received'
+            : isCustomer
+              ? 'Payment received'
+              : 'Payment made'
+        }
         subtitle={party?.name}
       />
 
@@ -131,10 +159,16 @@ export default function RecordPaymentScreen() {
         <ScrollScreen clearsTabBar={false} contentContainerStyle={styles.content}>
           <Card style={styles.outstanding}>
             <Text variant="label" tone="secondary">
-              {isCustomer ? 'Currently owed to you' : 'Currently owed by you'}
+              {isRefund
+                ? isCustomer
+                  ? 'Advance held for them'
+                  : 'Held with them'
+                : isCustomer
+                  ? 'Currently owed to you'
+                  : 'Currently owed by you'}
             </Text>
             <Text variant="amountLarge" tone={outstanding > 0 ? 'default' : 'muted'}>
-              {outstanding > 0 ? money(outstanding) : 'Settled'}
+              {outstanding > 0 ? money(outstanding) : 'Nothing'}
             </Text>
           </Card>
 
@@ -151,7 +185,7 @@ export default function RecordPaymentScreen() {
 
             {outstanding > 0 && entered === 0 ? (
               <Button
-                label={`Pay full ${money(outstanding)}`}
+                label={isRefund ? `Refund all ${money(outstanding)}` : `Pay full ${money(outstanding)}`}
                 variant="secondary"
                 size="sm"
                 onPress={() => setAmount(String(outstanding))}
@@ -161,10 +195,16 @@ export default function RecordPaymentScreen() {
             {entered > 0 ? (
               <Text variant="caption" tone={remaining < 0 ? 'warning' : 'secondary'}>
                 {remaining > 0
-                  ? `${money(remaining)} will remain outstanding.`
+                  ? isRefund
+                    ? `${money(remaining)} will stay held.`
+                    : `${money(remaining)} will remain outstanding.`
                   : remaining === 0
-                    ? 'This settles the balance in full.'
-                    : `${money(-remaining)} more than owed — held as an advance against future bills.`}
+                    ? isRefund
+                      ? 'This returns the whole advance.'
+                      : 'This settles the balance in full.'
+                    : isRefund
+                      ? `${money(-remaining)} more than held — they will owe you that much.`
+                      : `${money(-remaining)} more than owed — held as an advance against future bills.`}
               </Text>
             ) : null}
 
@@ -176,7 +216,7 @@ export default function RecordPaymentScreen() {
             />
           </Card>
 
-          <SectionHeader title="Paid by" />
+          <SectionHeader title={isRefund ? 'Returned by' : 'Paid by'} />
           <Segmented value={mode} onChange={setMode} options={MODES} />
 
           <Card style={styles.group}>
@@ -206,7 +246,7 @@ export default function RecordPaymentScreen() {
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
           <Button
-            label="Save payment"
+            label={isRefund ? 'Save refund' : 'Save payment'}
             size="lg"
             fullWidth
             icon="check"

@@ -503,6 +503,16 @@ export type LedgerEntry = {
 };
 
 /**
+ * Direction alone does not say what happened -- money out to a customer is a
+ * refund of their advance, while money out to a supplier is an ordinary
+ * payment. Both would otherwise read as "Paid".
+ */
+export function paymentLabel(kind: PartyKind | undefined, direction: 'in' | 'out'): string {
+  if (kind === 'supplier') return direction === 'out' ? 'Paid' : 'Refund received';
+  return direction === 'in' ? 'Received' : 'Refunded';
+}
+
+/**
  * A party's full history, newest first. Bills and payments live in different
  * tables and are stitched together here rather than in a view, so unsent
  * entries from the outbox can be folded into the same list.
@@ -558,7 +568,7 @@ export function usePartyLedger(partyId: string | undefined, kind: PartyKind | un
         date: payment.pay_date,
         delta: (payment.direction === 'in' ? -1 : 1) * Number(payment.amount),
         amount: Number(payment.amount),
-        label: payment.direction === 'in' ? 'Received' : 'Paid',
+        label: paymentLabel(kind, payment.direction),
         note: payment.note,
         reference: payment.reference,
       }));
