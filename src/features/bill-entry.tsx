@@ -42,9 +42,6 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
   { value: 'credit', label: 'Udhaar' },
 ];
 
-/** Offered only when that party has money held. */
-const ADVANCE_MODE = { value: 'advance' as PaymentMode, label: 'From advance' };
-
 function toNumber(value: string): number {
   const n = Number(value.trim());
   return Number.isFinite(n) ? n : 0;
@@ -80,6 +77,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paidAmount, setPaidAmount] = useState('');
   const [reference, setReference] = useState('');
+  const [useAdvance, setUseAdvance] = useState(false);
   const [notes, setNotes] = useState('');
 
   const [partyOpen, setPartyOpen] = useState(false);
@@ -97,25 +95,25 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     [lines],
   );
 
+  // Money of theirs already sitting with you. A customer who paid ahead shows
+  // as a negative balance; an overpaid supplier as a positive one.
+  const partyBalance = Number(balances.find((row) => row.id === partyId)?.balance ?? 0);
+  const advanceHeld = Math.max(0, isSale ? -partyBalance : partyBalance);
+  // Its own button rather than a fifth payment mode: the four modes are what
+  // he already knows, and a control that grows an extra option for certain
+  // parties is the part that would confuse.
+  const usingAdvance = useAdvance && advanceHeld > 0;
+
   // Cash, UPI and bank mean the bill is settled now. Udhaar means nothing was
   // paid unless the user types a part payment, so only that mode stays free.
   // An advance-settled bill records nothing paid at the counter: the money
   // arrived earlier and already sits in the balance. Recording it as paid
   // would count the same rupees twice.
-  const paid =
-    paymentMode === 'advance' ? 0 : paymentMode === 'credit' ? toNumber(paidAmount) : total;
+  const paid = usingAdvance ? 0 : paymentMode === 'credit' ? toNumber(paidAmount) : total;
   const balance = total - paid;
 
   const partyName = parties.find((p) => p.id === partyId)?.name ?? null;
   const referenceLabel = referenceLabelFor(paymentMode);
-
-  // Money of theirs already sitting with you. A customer who paid ahead shows
-  // as a negative balance; an overpaid supplier as a positive one.
-  const partyBalance = Number(balances.find((row) => row.id === partyId)?.balance ?? 0);
-  const advanceHeld = Math.max(0, isSale ? -partyBalance : partyBalance);
-  const usingAdvance = paymentMode === 'advance';
-
-  const modeOptions = advanceHeld > 0 ? [ADVANCE_MODE, ...PAYMENT_MODES] : PAYMENT_MODES;
 
   // How much of the advance this bill eats, and what is left either way.
   const advanceApplied = Math.min(advanceHeld, total);
@@ -188,14 +186,14 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         // lookup -- the party itself may also still be unsent.
         partyName: partyName ?? 'Unknown',
         billDate: toISODate(billDate),
-        paymentMode,
+        paymentMode: usingAdvance ? 'advance' : paymentMode,
         paidAmount: paid,
         totalAmount: total,
         notes: notes.trim() || null,
         supplierRef: isSale ? null : supplierRef.trim() || null,
         // Dropped if the mode changed after typing -- a UTR on a cash bill is
         // a leftover, not a fact.
-        reference: referenceLabel ? reference.trim() || null : null,
+        reference: !usingAdvance && referenceLabel ? reference.trim() || null : null,
         items: usable.map((line) => ({
           product_id: line.productId,
           qty: Math.round(toNumber(line.qty)),
@@ -323,25 +321,56 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
           <SectionHeader title="Payment" />
 
-          <Card style={styles.group}>
-            <Segmented value={paymentMode} onChange={setPaymentMode} options={modeOptions} />
+          {/* Only for the party that actually has money with you. Every other
+              bill sees exactly the controls it always has. */}
+          {advanceHeld > 0 ? (
+            <Card style={styles.advance}>
+              <View style={styles.advanceHead}>
+                <View style={styles.advanceText}>
+                  <Text variant="label" tone="secondary">
+                    {isSale ? 'Advance held from them' : 'Advance paid to them'}
+                  </Text>
+                  <Text variant="amount" tone="success">
+                    {money(advanceHeld)}
+                  </Text>
+                </View>
+                <Feather name="bookmark" size={20} color={colors.moneyIn} />
+              </View>
 
-            {usingAdvance ? (
-              <Text variant="caption" tone="secondary">
-                {total === 0
-                  ? `${money(advanceHeld)} advance held.`
-                  : stillOwed > 0
-                    ? `${money(advanceApplied)} of the advance covers this · ${money(stillOwed)} will remain outstanding.`
-                    : `Covered by the advance · ${money(advanceLeft)} stays held.`}
-              </Text>
-            ) : advanceHeld > 0 ? (
-              <Text variant="caption" tone="warning">
-                {money(advanceHeld)} advance is held — choosing anything else records this as a
-                separate payment and leaves the advance untouched.
-              </Text>
+              {usingAdvance ? (
+                <>
+                  <Text variant="caption" tone="secondary">
+                    {total === 0
+                      ? 'Add the items and this advance will cover them.'
+                      : stillOwed > 0
+                        ? `${money(advanceApplied)} covers this bill · ${money(stillOwed)} still to collect.`
+                        : `Covers this bill in full · ${money(advanceLeft)} stays held.`}
+                  </Text>
+                  <Button
+                    label="Do not use it"
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => setUseAdvance(false)}
+                  />
+                </>
+              ) : (
+                <Button
+                  label="Use this advance"
+                  icon="check"
+                  onPress={() => setUseAdvance(true)}
+                />
+              )}
+            </Card>
+          ) : null}
+
+          <Card style={styles.group}>
+            {/* Hidden while the advance is being used -- nothing changes hands
+                today, so cash, UPI and udhaar have nothing to say about it. */}
+            {!usingAdvance ? (
+              <Segmented value={paymentMode} onChange={setPaymentMode} options={PAYMENT_MODES} />
             ) : null}
 
-            {paymentMode === 'credit' ? (
+            {!usingAdvance && paymentMode === 'credit' ? (
               <Input
                 label="Paid now"
                 money
@@ -354,7 +383,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
             {/* Cash leaves no trace and udhaar has not moved yet, so neither
                 has anything to reference. */}
-            {referenceLabel ? (
+            {!usingAdvance && referenceLabel ? (
               <Input
                 label={referenceLabel}
                 placeholder="Optional"
@@ -423,13 +452,8 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
           setPartyOpen(false);
           setErrors((e) => ({ ...e, party: undefined }));
 
-          // Settle from the advance by default when there is one -- that is
-          // what the money was taken for, and remembering to pick it is
-          // exactly the step that gets missed. Reset if the new party has
-          // none, so a leftover selection cannot follow them.
-          const balance = Number(balances.find((row) => row.id === option.id)?.balance ?? 0);
-          const held = Math.max(0, isSale ? -balance : balance);
-          setPaymentMode(held > 0 ? 'advance' : 'cash');
+          // Switching party must not carry the previous one's advance over.
+          setUseAdvance(false);
         }}
         onClose={() => setPartyOpen(false)}
       />
@@ -493,6 +517,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
+  advance: { gap: spacing.md, borderColor: colors.moneyIn },
+  advanceHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  advanceText: { flex: 1, gap: 1 },
   emptyItems: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing['2xl'] },
   lines: { gap: spacing.md },
   line: { gap: spacing.md },
