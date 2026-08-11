@@ -114,9 +114,18 @@ export function buildBillHtml({
 
   const rows = bill.items
     .map((item, index) => {
-      const description = [item.product?.size, item.product?.gsm ? `${item.product.gsm} GSM` : null]
-        .filter(Boolean)
-        .join(' · ');
+      // The product's own specification if it has one, otherwise whatever
+      // identifying detail exists. This is what tells a buyer months later
+      // which mat they were actually handed.
+      const description =
+        item.product?.spec ||
+        [
+          item.product?.colour,
+          item.product?.size,
+          item.product?.gsm ? `${item.product.gsm} GSM` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
       return `
         <tr>
           <td class="num">${index + 1}</td>

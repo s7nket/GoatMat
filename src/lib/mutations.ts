@@ -187,6 +187,8 @@ export type ProductInput = {
   name: string;
   size: string | null;
   gsm: number | null;
+  spec: string | null;
+  colour: string | null;
   default_rate: number | null;
   low_stock_at: number;
   notes: string | null;

@@ -30,6 +30,10 @@ export type Product = Audit & {
   name: string;
   size: string | null;
   gsm: number | null;
+  /** One line printed under the item on the bill. */
+  spec: string | null;
+  /** Told apart at a glance wherever products are listed. */
+  colour: string | null;
   hsn: string | null;
   default_rate: number | null;
   low_stock_at: number;
@@ -154,6 +158,7 @@ export type StockRow = {
   gsm: number | null;
   default_rate: number | null;
   low_stock_at: number;
+  colour: string | null;
   /** Archived products appear here only while they still hold stock. */
   archived: boolean;
   total_bought: number;
@@ -247,6 +252,8 @@ export type Database = {
           p_name: string;
           p_size: string | null;
           p_gsm: number | null;
+          p_spec: string | null;
+          p_colour: string | null;
           p_default_rate: number | null;
           p_low_stock_at: number;
           p_notes: string | null;

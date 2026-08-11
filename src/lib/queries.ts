@@ -231,6 +231,7 @@ export function useStock() {
         gsm: product.gsm,
         default_rate: product.default_rate,
         low_stock_at: product.low_stock_at,
+        colour: product.colour,
         archived: false,
         total_bought: 0,
         total_sold: 0,
@@ -254,6 +255,8 @@ export type BillListRow = {
   payment_mode: string | null;
   voided_at: string | null;
   party: { name: string; phone: string | null; address: string | null } | null;
+  /** Only on the list queries, where the row shows pieces before money. */
+  items?: { qty: number }[];
 };
 
 export type BillLine = {
@@ -261,10 +264,19 @@ export type BillLine = {
   qty: number;
   rate: number;
   amount: number;
-  product: { id: string; name: string; size: string | null; gsm: number | null } | null;
+  product: {
+    id: string;
+    name: string;
+    size: string | null;
+    gsm: number | null;
+    spec: string | null;
+    colour: string | null;
+  } | null;
 };
 
-export type BillDetail = BillListRow & {
+// Omits the list row's lightweight items: the detail screen needs the full
+// line, not just a quantity, and the two shapes cannot both be called `items`.
+export type BillDetail = Omit<BillListRow, 'items'> & {
   notes: string | null;
   supplier_ref?: string | null;
   reference: string | null;
@@ -282,7 +294,7 @@ export function useSales() {
     queryFn: async (): Promise<BillListRow[]> => {
       const { data, error } = await supabase
         .from('sales')
-        .select(LIST_COLUMNS)
+        .select(`${LIST_COLUMNS}, items:sale_items(qty)`)
         .is('voided_at', null)
         .order('bill_date', { ascending: false })
         .order('bill_no', { ascending: false })
@@ -299,7 +311,7 @@ export function usePurchases() {
     queryFn: async (): Promise<BillListRow[]> => {
       const { data, error } = await supabase
         .from('purchases')
-        .select(LIST_COLUMNS)
+        .select(`${LIST_COLUMNS}, items:purchase_items(qty)`)
         .is('voided_at', null)
         .order('bill_date', { ascending: false })
         .order('bill_no', { ascending: false })
@@ -323,7 +335,7 @@ export function useBill(kind: 'sale' | 'purchase', id: string | undefined) {
         .from(table)
         .select(
           `${LIST_COLUMNS}, notes, reference, voided_reason${extra}, ` +
-            `items:${itemTable}(id, qty, rate, amount, product:products(id, name, size, gsm))`,
+            `items:${itemTable}(id, qty, rate, amount, product:products(id, name, size, gsm, spec, colour))`,
         )
         .eq('id', id!)
         .maybeSingle();

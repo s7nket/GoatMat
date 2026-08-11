@@ -210,6 +210,8 @@ export function usePendingProducts(): Product[] {
           name: job.payload.name,
           size: job.payload.size,
           gsm: job.payload.gsm,
+          spec: job.payload.spec,
+          colour: job.payload.colour,
           hsn: null,
           default_rate: job.payload.default_rate,
           low_stock_at: job.payload.low_stock_at,

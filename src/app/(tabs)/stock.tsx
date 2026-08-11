@@ -77,6 +77,7 @@ export default function StockScreen() {
                       : item.archived
                         ? 'Archived, but still holding stock'
                         : [
+                            item.colour,
                             item.size,
                             item.gsm ? `${item.gsm} GSM` : null,
                             item.default_rate ? `${money(item.default_rate)}/pc` : null,

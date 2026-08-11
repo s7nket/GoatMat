@@ -65,9 +65,9 @@ export default function ProductsScreen() {
                   icon="package"
                   title={product.name}
                   subtitle={
-                    [product.size, product.gsm ? `${product.gsm} GSM` : null]
+                    [product.colour, product.size, product.gsm ? `${product.gsm} GSM` : null]
                       .filter(Boolean)
-                      .join(' · ') || 'No size set'
+                      .join(' · ') || 'No details set'
                   }
                   value={product.default_rate ? money(product.default_rate) : '—'}
                   valueTone={product.default_rate ? 'default' : 'muted'}

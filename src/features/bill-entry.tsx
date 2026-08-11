@@ -131,7 +131,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     return {
       id: product.id,
       label: product.name,
-      sublabel: [product.size, product.gsm ? `${product.gsm} GSM` : null]
+      sublabel: [product.colour, product.size, product.gsm ? `${product.gsm} GSM` : null]
         .filter(Boolean)
         .join(' · '),
       meta: left === undefined ? undefined : pieces(left),

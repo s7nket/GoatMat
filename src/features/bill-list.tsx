@@ -16,7 +16,7 @@ import {
   ScrollScreen,
   SectionHeader,
 } from '@/components/ui';
-import { money, prettyDate, shortDate } from '@/lib/format';
+import { money, pieces, prettyDate, shortDate } from '@/lib/format';
 import { usePendingBills } from '@/lib/offline';
 import { type BillListRow, usePurchases, useSales } from '@/lib/queries';
 import { spacing } from '@/theme/tokens';
@@ -128,6 +128,9 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
             <Card padded={false}>
               {bills.map((bill, index) => {
                 const balance = Number(bill.total_amount) - Number(bill.paid_amount);
+                // What moved matters more at a glance than what it cost --
+                // "90 pcs" answers the question the list is usually scanned for.
+                const qty = (bill.items ?? []).reduce((sum, item) => sum + item.qty, 0);
                 return (
                   <View key={bill.id}>
                     {index > 0 ? <RowDivider /> : null}
@@ -139,8 +142,10 @@ export function BillList({ kind }: { kind: 'sale' | 'purchase' }) {
                           ? `#${bill.bill_no} · ${money(balance)} ${isSale ? 'to receive' : 'to pay'}`
                           : `#${bill.bill_no} · settled`
                       }
-                      value={money(bill.total_amount)}
-                      valueCaption={shortDate(bill.bill_date)}
+                      value={qty > 0 ? pieces(qty) : money(bill.total_amount)}
+                      valueCaption={
+                        qty > 0 ? `${money(bill.total_amount)} · ${shortDate(bill.bill_date)}` : shortDate(bill.bill_date)
+                      }
                       onPress={() =>
                         router.push(
                           isSale

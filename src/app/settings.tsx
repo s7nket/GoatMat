@@ -31,10 +31,13 @@ import { colors, spacing } from '@/theme/tokens';
  * invoice its owner never agreed to.
  */
 const SUGGESTED_MAT_TERMS = [
+  'Load capacity is 500 kg per mat.',
   'No warranty if the mat is damaged by a grinder.',
-  'If a full mat breaks, the piece will be replaced.',
-  'Weight capacity is 500 kg per mat.',
+  'If a full mat breaks, the piece is replaced.',
+  'Lifetime after-sales support.',
 ].join('\n');
+
+const SUGGESTED_WARRANTY = '5 years';
 
 /** Enough to recognise the entry without opening anything. */
 function describeJob(job: OutboxJob): string {
@@ -183,7 +186,7 @@ export default function SettingsScreen() {
               <Card style={styles.group}>
                 <Input
                   label="Warranty"
-                  placeholder="4 years"
+                  placeholder="5 years"
                   hint="Printed beside the total. Leave empty to print nothing."
                   value={warranty}
                   onChangeText={setWarranty}
@@ -205,7 +208,7 @@ export default function SettingsScreen() {
                     size="sm"
                     icon="file-text"
                     onPress={() => {
-                      setWarranty((current) => current || '4 years');
+                      setWarranty((current) => current || SUGGESTED_WARRANTY);
                       setTerms(SUGGESTED_MAT_TERMS);
                     }}
                   />
