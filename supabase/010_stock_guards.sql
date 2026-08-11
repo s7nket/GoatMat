@@ -10,7 +10,12 @@
 -- An archived product is meant to be hidden from *new* bills. It was never
 -- meant to hide stock that physically exists.
 
-create or replace view stock_view
+-- Dropped rather than replaced: `create or replace view` can only append
+-- columns at the end, and `archived` belongs beside the other product fields.
+-- Nothing else reads this view, so dropping it costs nothing.
+drop view if exists stock_view;
+
+create view stock_view
 with (security_invoker = true)
 as
 with movement as (
