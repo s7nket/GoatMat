@@ -24,6 +24,18 @@ import type { OutboxJob } from '@/lib/outbox';
 import { useBusinessProfile } from '@/lib/queries';
 import { colors, spacing } from '@/theme/tokens';
 
+/**
+ * Offered as a starting point, never applied on its own. These are one
+ * seller's terms; another's warranty period and weight limit are their own
+ * business, and defaulting them onto every account would put words on an
+ * invoice its owner never agreed to.
+ */
+const SUGGESTED_MAT_TERMS = [
+  'No warranty if the mat is damaged by a grinder.',
+  'If a full mat breaks, the piece will be replaced.',
+  'Weight capacity is 500 kg per mat.',
+].join('\n');
+
 /** Enough to recognise the entry without opening anything. */
 function describeJob(job: OutboxJob): string {
   switch (job.type) {
@@ -52,6 +64,8 @@ export default function SettingsScreen() {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [footer, setFooter] = useState('');
+  const [warranty, setWarranty] = useState('');
+  const [terms, setTerms] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
   // Hydrate the form once the row arrives. The fields are edited locally
@@ -64,6 +78,8 @@ export default function SettingsScreen() {
     setPhone(business.phone ?? '');
     setAddress(business.address ?? '');
     setFooter(business.bill_footer ?? '');
+    setWarranty(business.warranty ?? '');
+    setTerms(business.bill_terms ?? '');
   }, [business]);
 
   async function handleSave() {
@@ -80,6 +96,8 @@ export default function SettingsScreen() {
         phone: phone.trim() || null,
         address: address.trim() || null,
         bill_footer: footer.trim() || null,
+        warranty: warranty.trim() || null,
+        bill_terms: terms.trim() || null,
       });
       Alert.alert('Saved', 'New bills will carry these details.');
     } catch (e) {
@@ -158,6 +176,40 @@ export default function SettingsScreen() {
                   value={footer}
                   onChangeText={setFooter}
                 />
+              </Card>
+
+              <SectionHeader title="Warranty and terms" />
+
+              <Card style={styles.group}>
+                <Input
+                  label="Warranty"
+                  placeholder="4 years"
+                  hint="Printed beside the total. Leave empty to print nothing."
+                  value={warranty}
+                  onChangeText={setWarranty}
+                />
+                <Input
+                  label="Terms and conditions"
+                  placeholder={'One per line'}
+                  hint="Numbered on the bill, in the order written here."
+                  value={terms}
+                  onChangeText={setTerms}
+                  multiline
+                  textAlignVertical="top"
+                  style={styles.terms}
+                />
+                {terms.trim() === '' ? (
+                  <Button
+                    label="Use the usual mat terms"
+                    variant="secondary"
+                    size="sm"
+                    icon="file-text"
+                    onPress={() => {
+                      setWarranty((current) => current || '4 years');
+                      setTerms(SUGGESTED_MAT_TERMS);
+                    }}
+                  />
+                ) : null}
               </Card>
 
               <SectionHeader title="Sync" />
@@ -276,6 +328,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
+  terms: { minHeight: 96 },
   failedNote: { paddingHorizontal: spacing.xs, marginTop: -spacing.sm },
   failedRow: { padding: spacing.lg, gap: spacing.md },
   failedText: { gap: 2 },

@@ -33,6 +33,8 @@ export type BusinessProfileInput = {
   phone: string | null;
   address: string | null;
   bill_footer: string | null;
+  warranty: string | null;
+  bill_terms: string | null;
 };
 
 export function useSaveBusinessProfile() {

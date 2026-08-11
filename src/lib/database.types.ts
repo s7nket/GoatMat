@@ -130,6 +130,10 @@ export type Profile = {
   phone: string | null;
   address: string | null;
   bill_footer: string | null;
+  /** Short warranty line on the bill, e.g. "4 years". */
+  warranty: string | null;
+  /** Terms and conditions, one per line. Numbered on the bill. */
+  bill_terms: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;

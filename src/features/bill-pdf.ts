@@ -103,6 +103,13 @@ export function buildBillHtml({
   const isSale = kind === 'sale';
   const balance = Number(bill.total_amount) - Number(bill.paid_amount);
   const fromAdvance = bill.payment_mode === 'advance';
+
+  // One per line as written in Settings. Blank lines are dropped so a stray
+  // return key does not print an empty numbered item.
+  const terms = (business?.bill_terms ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   const totalPieces = bill.items.reduce((sum, item) => sum + item.qty, 0);
 
   const rows = bill.items
@@ -218,6 +225,19 @@ export function buildBillHtml({
         border-radius: 4px;
       }
       .notes { margin-top: 18px; }
+      .warranty {
+        display: inline-block;
+        margin-top: 14px;
+        padding: 6px 12px;
+        border: 1.5px solid #137A4C;
+        border-radius: 4px;
+        color: #0A3D26;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .terms { margin-top: 18px; }
+      .terms ol { margin: 6px 0 0; padding-left: 20px; }
+      .terms li { margin-bottom: 3px; color: #334155; font-size: 13px; }
       .foot {
         margin-top: 48px;
         padding-top: 16px;
@@ -339,6 +359,23 @@ export function buildBillHtml({
         ? `<div class="notes">
              <div class="label">Note</div>
              <div>${escapeHtml(bill.notes)}</div>
+           </div>`
+        : ''
+    }
+
+    ${
+      // A customer's copy only. A purchase record is for your own file and
+      // your own warranty terms have nothing to say on it.
+      isSale && business?.warranty
+        ? `<div class="warranty">${escapeHtml(business.warranty)} warranty</div>`
+        : ''
+    }
+
+    ${
+      isSale && terms.length > 0
+        ? `<div class="terms">
+             <div class="label">Terms and conditions</div>
+             <ol>${terms.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ol>
            </div>`
         : ''
     }
