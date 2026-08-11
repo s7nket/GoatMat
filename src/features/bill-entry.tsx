@@ -23,7 +23,7 @@ import {
 import type { PaymentMode } from '@/lib/database.types';
 import { money, pieces, prettyDate, toISODate } from '@/lib/format';
 import { useCreateBill } from '@/lib/mutations';
-import { useParties, useProducts, useStock } from '@/lib/queries';
+import { useParties, usePartyBalances, useProducts, useStock } from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 type Line = {
@@ -41,6 +41,9 @@ const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
   { value: 'bank', label: 'Bank' },
   { value: 'credit', label: 'Udhaar' },
 ];
+
+/** Offered only when that party has money held. */
+const ADVANCE_MODE = { value: 'advance' as PaymentMode, label: 'From advance' };
 
 function toNumber(value: string): number {
   const n = Number(value.trim());
@@ -64,6 +67,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
   const partyKind = isSale ? 'customer' : 'supplier';
   const { data: parties = [] } = useParties(partyKind);
+  const { data: balances = [] } = usePartyBalances(partyKind);
   const { data: products = [] } = useProducts();
   const { data: stock = [] } = useStock();
   const createBill = useCreateBill(kind);
@@ -95,11 +99,28 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
   // Cash, UPI and bank mean the bill is settled now. Udhaar means nothing was
   // paid unless the user types a part payment, so only that mode stays free.
-  const paid = paymentMode === 'credit' ? toNumber(paidAmount) : total;
+  // An advance-settled bill records nothing paid at the counter: the money
+  // arrived earlier and already sits in the balance. Recording it as paid
+  // would count the same rupees twice.
+  const paid =
+    paymentMode === 'advance' ? 0 : paymentMode === 'credit' ? toNumber(paidAmount) : total;
   const balance = total - paid;
 
   const partyName = parties.find((p) => p.id === partyId)?.name ?? null;
   const referenceLabel = referenceLabelFor(paymentMode);
+
+  // Money of theirs already sitting with you. A customer who paid ahead shows
+  // as a negative balance; an overpaid supplier as a positive one.
+  const partyBalance = Number(balances.find((row) => row.id === partyId)?.balance ?? 0);
+  const advanceHeld = Math.max(0, isSale ? -partyBalance : partyBalance);
+  const usingAdvance = paymentMode === 'advance';
+
+  const modeOptions = advanceHeld > 0 ? [ADVANCE_MODE, ...PAYMENT_MODES] : PAYMENT_MODES;
+
+  // How much of the advance this bill eats, and what is left either way.
+  const advanceApplied = Math.min(advanceHeld, total);
+  const advanceLeft = advanceHeld - advanceApplied;
+  const stillOwed = total - advanceApplied;
 
   const partyOptions: PickerOption[] = parties.map((party) => ({
     id: party.id,
@@ -303,7 +324,22 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
           <SectionHeader title="Payment" />
 
           <Card style={styles.group}>
-            <Segmented value={paymentMode} onChange={setPaymentMode} options={PAYMENT_MODES} />
+            <Segmented value={paymentMode} onChange={setPaymentMode} options={modeOptions} />
+
+            {usingAdvance ? (
+              <Text variant="caption" tone="secondary">
+                {total === 0
+                  ? `${money(advanceHeld)} advance held.`
+                  : stillOwed > 0
+                    ? `${money(advanceApplied)} of the advance covers this · ${money(stillOwed)} will remain outstanding.`
+                    : `Covered by the advance · ${money(advanceLeft)} stays held.`}
+              </Text>
+            ) : advanceHeld > 0 ? (
+              <Text variant="caption" tone="warning">
+                {money(advanceHeld)} advance is held — choosing anything else records this as a
+                separate payment and leaves the advance untouched.
+              </Text>
+            ) : null}
 
             {paymentMode === 'credit' ? (
               <Input
@@ -386,6 +422,14 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
           setPartyId(option.id);
           setPartyOpen(false);
           setErrors((e) => ({ ...e, party: undefined }));
+
+          // Settle from the advance by default when there is one -- that is
+          // what the money was taken for, and remembering to pick it is
+          // exactly the step that gets missed. Reset if the new party has
+          // none, so a leftover selection cannot follow them.
+          const balance = Number(balances.find((row) => row.id === option.id)?.balance ?? 0);
+          const held = Math.max(0, isSale ? -balance : balance);
+          setPaymentMode(held > 0 ? 'advance' : 'cash');
         }}
         onClose={() => setPartyOpen(false)}
       />

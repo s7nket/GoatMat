@@ -102,6 +102,7 @@ export function buildBillHtml({
 }): string {
   const isSale = kind === 'sale';
   const balance = Number(bill.total_amount) - Number(bill.paid_amount);
+  const fromAdvance = bill.payment_mode === 'advance';
   const totalPieces = bill.items.reduce((sum, item) => sum + item.qty, 0);
 
   const rows = bill.items
@@ -294,12 +295,24 @@ export function buildBillHtml({
         </tr>
         <tr>
           <td class="muted">Paid</td>
-          <td class="num">${money(bill.paid_amount, { decimals: true })}</td>
+          <td class="num">${
+            fromAdvance
+              ? money(bill.total_amount, { decimals: true })
+              : money(bill.paid_amount, { decimals: true })
+          }</td>
         </tr>
         <tr>
           <td class="muted">${isSale ? 'Balance due' : 'Balance payable'}</td>
-          <td class="num ${balance > 0 ? 'due' : 'settled'}">
-            ${balance > 0 ? money(balance, { decimals: true }) : 'Settled'}
+          <td class="num ${balance > 0 && !fromAdvance ? 'due' : 'settled'}">
+            ${
+              // Nothing was paid against this bill, but the customer had
+              // already paid -- printing "due" would ask them for money twice.
+              fromAdvance
+                ? 'Paid in advance'
+                : balance > 0
+                  ? money(balance, { decimals: true })
+                  : 'Settled'
+            }
           </td>
         </tr>
       </table>

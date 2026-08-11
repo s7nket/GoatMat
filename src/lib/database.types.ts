@@ -9,7 +9,13 @@
  * If you change schema.sql, change this file in the same commit.
  */
 
-export type PaymentMode = 'cash' | 'upi' | 'bank' | 'credit';
+/**
+ * `advance` means the bill was settled from money the party had already paid,
+ * so nothing changed hands at the counter. Recording such a bill as `credit`
+ * would claim they took it on trust when they had in fact prepaid; recording
+ * it as `cash` would count the same rupees a second time.
+ */
+export type PaymentMode = 'cash' | 'upi' | 'bank' | 'credit' | 'advance';
 export type PartyKind = 'supplier' | 'customer';
 export type ExpenseCategory = 'transport' | 'labour' | 'rent' | 'fuel' | 'misc';
 

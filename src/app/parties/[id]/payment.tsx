@@ -82,11 +82,11 @@ export default function RecordPaymentScreen() {
     }
     setAmountError(null);
 
-    // Going past the balance is legitimate in both directions -- an advance
-    // against the next lot, or refunding more than was held because a bill is
-    // being reversed too -- but it is far more often a typed digit too many,
-    // and it silently flips the balance the other way.
-    if (entered > outstanding) {
+    // Only ask when it is genuinely ambiguous: they owed something, and more
+    // than that came in. Taking money from someone who owes nothing is an
+    // advance and nothing else -- the line under the field already said so,
+    // and confirming an unambiguous action just trains people to tap through.
+    if (outstanding > 0 && entered > outstanding) {
       const excess = entered - outstanding;
 
       Alert.alert(
@@ -192,19 +192,24 @@ export default function RecordPaymentScreen() {
               />
             ) : null}
 
+            {/* Says what the entry will mean, as it is typed. This is what
+                replaces making the user choose between a payment and an
+                advance up front -- the app works it out from the balance. */}
             {entered > 0 ? (
               <Text variant="caption" tone={remaining < 0 ? 'warning' : 'secondary'}>
-                {remaining > 0
-                  ? isRefund
+                {isRefund
+                  ? remaining > 0
                     ? `${money(remaining)} will stay held.`
-                    : `${money(remaining)} will remain outstanding.`
-                  : remaining === 0
-                    ? isRefund
+                    : remaining === 0
                       ? 'This returns the whole advance.'
-                      : 'This settles the balance in full.'
-                    : isRefund
-                      ? `${money(-remaining)} more than held — they will owe you that much.`
-                      : `${money(-remaining)} more than owed — held as an advance against future bills.`}
+                      : `${money(-remaining)} more than held — they will owe you that much.`
+                  : outstanding === 0
+                    ? `${money(entered)} held as an advance against future bills.`
+                    : remaining > 0
+                      ? `${money(remaining)} will remain outstanding.`
+                      : remaining === 0
+                        ? 'Settles the balance in full.'
+                        : `Settles ${money(outstanding)} · ${money(-remaining)} held as an advance.`}
               </Text>
             ) : null}
 

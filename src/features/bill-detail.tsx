@@ -28,6 +28,7 @@ const MODE_LABELS: Record<string, string> = {
   upi: 'UPI',
   bank: 'Bank',
   credit: 'Udhaar',
+  advance: 'Settled from advance',
 };
 
 export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string }) {
