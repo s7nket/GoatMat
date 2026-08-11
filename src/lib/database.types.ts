@@ -150,6 +150,8 @@ export type StockRow = {
   gsm: number | null;
   default_rate: number | null;
   low_stock_at: number;
+  /** Archived products appear here only while they still hold stock. */
+  archived: boolean;
   total_bought: number;
   total_sold: number;
   qty_left: number;

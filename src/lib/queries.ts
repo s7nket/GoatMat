@@ -231,6 +231,7 @@ export function useStock() {
         gsm: product.gsm,
         default_rate: product.default_rate,
         low_stock_at: product.low_stock_at,
+        archived: false,
         total_bought: 0,
         total_sold: 0,
         qty_left: delta.get(product.id) ?? 0,

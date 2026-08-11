@@ -60,34 +60,46 @@ export default function StockScreen() {
         />
       ) : (
         <Card padded={false}>
-          {data.map((item, index) => (
-            <View key={item.id}>
-              {index > 0 ? <RowDivider /> : null}
-              <ListRow
-                icon="package"
-                title={item.name}
-                subtitle={[
-                  item.size,
-                  item.gsm ? `${item.gsm} GSM` : null,
-                  item.default_rate ? `${money(item.default_rate)}/pc` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-                value={pieces(item.qty_left)}
-                valueTone={
-                  item.qty_left <= 0
-                    ? 'danger'
-                    : item.qty_left <= item.low_stock_at
-                      ? 'default'
-                      : 'success'
-                }
-                valueCaption="in stock"
-                onPress={() =>
-                  router.push({ pathname: '/products/[id]', params: { id: item.id } })
-                }
-              />
-            </View>
-          ))}
+          {data.map((item, index) => {
+            // Below zero means more has been sold than was ever bought, which
+            // is never true of physical stock -- it means purchases are
+            // missing, or were entered against a different product.
+            const impossible = item.qty_left < 0;
+            return (
+              <View key={item.id}>
+                {index > 0 ? <RowDivider /> : null}
+                <ListRow
+                  icon={impossible ? 'alert-triangle' : 'package'}
+                  title={item.name}
+                  subtitle={
+                    impossible
+                      ? 'More sold than bought — a purchase is missing'
+                      : item.archived
+                        ? 'Archived, but still holding stock'
+                        : [
+                            item.size,
+                            item.gsm ? `${item.gsm} GSM` : null,
+                            item.default_rate ? `${money(item.default_rate)}/pc` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                  }
+                  value={impossible ? `−${pieces(Math.abs(item.qty_left))}` : pieces(item.qty_left)}
+                  valueTone={
+                    impossible || item.qty_left === 0
+                      ? 'danger'
+                      : item.qty_left <= item.low_stock_at
+                        ? 'default'
+                        : 'success'
+                  }
+                  valueCaption={impossible ? 'check this' : 'in stock'}
+                  onPress={() =>
+                    router.push({ pathname: '/products/[id]', params: { id: item.id } })
+                  }
+                />
+              </View>
+            );
+          })}
         </Card>
       )}
     </ScrollScreen>

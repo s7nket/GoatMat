@@ -15,7 +15,8 @@ import {
   Text,
 } from '@/components/ui';
 import { useArchiveProduct, useSaveProduct } from '@/lib/mutations';
-import { useProduct } from '@/lib/queries';
+import { pieces } from '@/lib/format';
+import { useProduct, useStock } from '@/lib/queries';
 import { colors, spacing } from '@/theme/tokens';
 
 /** Empty string means "not set" -- distinct from 0, which is a real rate. */
@@ -33,8 +34,11 @@ export default function ProductFormScreen() {
   const insets = useSafeAreaInsets();
 
   const { data: product, isPending, isError, error, refetch } = useProduct(id);
+  const { data: stock = [] } = useStock();
   const save = useSaveProduct();
   const archive = useArchiveProduct();
+
+  const inStock = stock.find((row) => row.id === id)?.qty_left ?? 0;
 
   const [name, setName] = useState('');
   const [size, setSize] = useState('');
@@ -81,6 +85,20 @@ export default function ProductFormScreen() {
   }
 
   function handleArchive() {
+    // Archiving is meant to hide a product from new bills, not to hide stock
+    // that physically exists. One account archived a product holding 1,962
+    // pieces and those pieces silently left the Stock screen.
+    if (inStock !== 0) {
+      Alert.alert(
+        'Still holding stock',
+        inStock > 0
+          ? `${product?.name ?? 'This product'} still has ${pieces(inStock)} in stock. Sell them, or record the loss, before archiving — otherwise the count disappears from Stock while the bills stay.`
+          : `${product?.name ?? 'This product'} shows ${pieces(Math.abs(inStock))} more sold than bought, which means a purchase is missing. Fix that before archiving.`,
+        [{ text: 'OK' }],
+      );
+      return;
+    }
+
     Alert.alert(
       'Archive product?',
       `${product?.name ?? 'This product'} will stop appearing on new bills. Past bills keep it.`,
