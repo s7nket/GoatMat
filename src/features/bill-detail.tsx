@@ -180,7 +180,11 @@ export function BillDetail({ kind, id }: { kind: 'sale' | 'purchase'; id: string
               {index > 0 ? <RowDivider /> : null}
               <ListRow
                 icon="package"
-                title={item.product?.name ?? 'Removed product'}
+                title={
+                  item.colour
+                    ? `${item.product?.name ?? 'Removed product'} · ${item.colour}`
+                    : (item.product?.name ?? 'Removed product')
+                }
                 subtitle={`${item.qty} × ${money(item.rate)}`}
                 value={money(item.amount)}
                 chevron={false}

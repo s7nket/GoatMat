@@ -211,7 +211,6 @@ export function usePendingProducts(): Product[] {
           size: job.payload.size,
           gsm: job.payload.gsm,
           spec: job.payload.spec,
-          colour: job.payload.colour,
           hsn: null,
           default_rate: job.payload.default_rate,
           low_stock_at: job.payload.low_stock_at,
@@ -288,6 +287,27 @@ export function usePendingPayments(partyId?: string): PaymentJob[] {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [pending, partyId],
   );
+}
+
+/**
+ * Same idea as the product-level delta, keyed by `productId:colour` so it
+ * lines up with colour_stock_view. Buying red offline then selling it has to
+ * work before either bill has reached the server.
+ */
+export function usePendingColourStockDelta(): Map<string, number> {
+  const { pendingBills } = useOffline();
+
+  return useMemo(() => {
+    const delta = new Map<string, number>();
+    for (const job of pendingBills) {
+      const sign = job.type === 'purchase' ? 1 : -1;
+      for (const item of job.payload.items) {
+        const key = `${item.product_id}:${item.colour ?? ''}`;
+        delta.set(key, (delta.get(key) ?? 0) + sign * item.qty);
+      }
+    }
+    return delta;
+  }, [pendingBills]);
 }
 
 /** Positive means they owe us more once the queue lands. */

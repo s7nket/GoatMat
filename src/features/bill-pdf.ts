@@ -117,15 +117,17 @@ export function buildBillHtml({
       // The product's own specification if it has one, otherwise whatever
       // identifying detail exists. This is what tells a buyer months later
       // which mat they were actually handed.
-      const description =
+      // Colour is per line, so it sits outside that choice: two lines of the
+      // same product differ by nothing else on paper.
+      const description = [
+        item.colour,
         item.product?.spec ||
-        [
-          item.product?.colour,
-          item.product?.size,
-          item.product?.gsm ? `${item.product.gsm} GSM` : null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
+          [item.product?.size, item.product?.gsm ? `${item.product.gsm} GSM` : null]
+            .filter(Boolean)
+            .join(' · '),
+      ]
+        .filter(Boolean)
+        .join(' · ');
       return `
         <tr>
           <td class="num">${index + 1}</td>

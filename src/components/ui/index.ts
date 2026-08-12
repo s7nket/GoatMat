@@ -1,6 +1,7 @@
 export { Badge } from '@/components/ui/badge';
 export { Button, type ButtonProps } from '@/components/ui/button';
 export { Card, PressableCard } from '@/components/ui/card';
+export { ColourSheet } from '@/components/ui/colour-sheet';
 export { EmptyState, ErrorState, LoadingState } from '@/components/ui/empty-state';
 export { FormHeader } from '@/components/ui/form-header';
 export { Input, type InputProps, SelectField } from '@/components/ui/input';

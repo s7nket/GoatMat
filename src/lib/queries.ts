@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type {
+  ColourStockRow,
   Party,
   PartyBalanceRow,
   PartyKind,
@@ -13,6 +14,7 @@ import { toISODate } from '@/lib/format';
 import {
   useOffline,
   usePendingBalanceDelta,
+  usePendingColourStockDelta,
   usePendingParties,
   usePendingProducts,
   usePendingStockDelta,
@@ -28,6 +30,8 @@ export const keys = {
   purchases: ['purchases'] as const,
   parties: (kind?: string) => ['parties', kind ?? 'all'] as const,
   products: ['products'] as const,
+  colourStock: ['colour-stock'] as const,
+  colours: ['colours'] as const,
   business: ['business-profile'] as const,
 };
 
@@ -231,7 +235,6 @@ export function useStock() {
         gsm: product.gsm,
         default_rate: product.default_rate,
         low_stock_at: product.low_stock_at,
-        colour: product.colour,
         archived: false,
         total_bought: 0,
         total_sold: 0,
@@ -264,13 +267,14 @@ export type BillLine = {
   qty: number;
   rate: number;
   amount: number;
+  /** Colour of the pieces on this line, not of the product. */
+  colour: string | null;
   product: {
     id: string;
     name: string;
     size: string | null;
     gsm: number | null;
     spec: string | null;
-    colour: string | null;
   } | null;
 };
 
@@ -335,7 +339,7 @@ export function useBill(kind: 'sale' | 'purchase', id: string | undefined) {
         .from(table)
         .select(
           `${LIST_COLUMNS}, notes, reference, voided_reason${extra}, ` +
-            `items:${itemTable}(id, qty, rate, amount, product:products(id, name, size, gsm, spec, colour))`,
+            `items:${itemTable}(id, qty, rate, amount, colour, product:products(id, name, size, gsm, spec))`,
         )
         .eq('id', id!)
         .maybeSingle();
@@ -678,6 +682,85 @@ export function useParty(id: string | undefined) {
       return data;
     },
   });
+}
+
+/**
+ * Stock split by colour. The same mat arrives red and green on one purchase,
+ * and "have I got red left" is a different question from "have I got mats".
+ */
+export function useColourStock() {
+  const delta = usePendingColourStockDelta();
+
+  const query = useQuery({
+    queryKey: keys.colourStock,
+    queryFn: async (): Promise<ColourStockRow[]> => {
+      const { data, error } = await supabase
+        .from('colour_stock_view')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      return (data ?? []) as ColourStockRow[];
+    },
+  });
+
+  const data = useMemo(() => {
+    const rows = (query.data ?? []).map((row) => {
+      const change = delta.get(row.id);
+      return change ? { ...row, qty_left: row.qty_left + change } : row;
+    });
+
+    // A colour that only exists in the unsent queue still has to appear, or
+    // buying red offline and then selling it looks impossible.
+    const seen = new Set(rows.map((row) => row.id));
+    for (const [key, change] of delta) {
+      if (seen.has(key)) continue;
+      const [productId, colour] = key.split(':');
+      rows.push({
+        id: key,
+        product_id: productId,
+        colour: colour || null,
+        name: '',
+        size: null,
+        gsm: null,
+        default_rate: null,
+        low_stock_at: 0,
+        archived: false,
+        total_bought: Math.max(0, change),
+        total_sold: Math.max(0, -change),
+        qty_left: change,
+      });
+    }
+
+    return rows;
+  }, [query.data, delta]);
+
+  return { ...query, data };
+}
+
+/** Colours this account has already used, so the picker needs no setup. */
+export function useColoursUsed() {
+  const { pendingBills } = useOffline();
+
+  const query = useQuery({
+    queryKey: keys.colours,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.from('colours_used').select('colour');
+      if (error) throw error;
+      return (data ?? []).map((row) => row.colour).filter(Boolean);
+    },
+  });
+
+  return useMemo(() => {
+    const all = new Set(query.data ?? []);
+    // Anything typed on an unsent bill counts as used, or the colour vanishes
+    // from the list until the queue drains.
+    for (const job of pendingBills) {
+      for (const item of job.payload.items) {
+        if (item.colour) all.add(item.colour);
+      }
+    }
+    return [...all].sort((a, b) => a.localeCompare(b));
+  }, [query.data, pendingBills]);
 }
 
 export function usePartyBalances(kind?: 'supplier' | 'customer') {

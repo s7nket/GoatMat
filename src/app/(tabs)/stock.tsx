@@ -1,5 +1,6 @@
 import { useRouter } from 'expo-router';
-import { View } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -13,15 +14,31 @@ import {
   RowDivider,
   ScrollScreen,
   SectionHeader,
+  Text,
 } from '@/components/ui';
 import { money, pieces } from '@/lib/format';
-import { useStock } from '@/lib/queries';
-import { spacing } from '@/theme/tokens';
+import { useColourStock, useStock } from '@/lib/queries';
+import { colors, spacing } from '@/theme/tokens';
 
 export default function StockScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data, isPending, isError, error, refetch, isRefetching } = useStock();
+  const { data: colourStock = [] } = useColourStock();
+
+  // Only the colours worth naming. A product bought before colours were
+  // recorded has one nameless row that says nothing the product row does not.
+  const coloursByProduct = useMemo(() => {
+    const map = new Map<string, { colour: string; qty_left: number }[]>();
+    for (const row of colourStock) {
+      if (!row.colour) continue;
+      const list = map.get(row.product_id) ?? [];
+      list.push({ colour: row.colour, qty_left: row.qty_left });
+      map.set(row.product_id, list);
+    }
+    for (const list of map.values()) list.sort((a, b) => b.qty_left - a.qty_left);
+    return map;
+  }, [colourStock]);
 
   return (
     <ScrollScreen
@@ -65,6 +82,7 @@ export default function StockScreen() {
             // is never true of physical stock -- it means purchases are
             // missing, or were entered against a different product.
             const impossible = item.qty_left < 0;
+            const byColour = coloursByProduct.get(item.id) ?? [];
             return (
               <View key={item.id}>
                 {index > 0 ? <RowDivider /> : null}
@@ -77,7 +95,6 @@ export default function StockScreen() {
                       : item.archived
                         ? 'Archived, but still holding stock'
                         : [
-                            item.colour,
                             item.size,
                             item.gsm ? `${item.gsm} GSM` : null,
                             item.default_rate ? `${money(item.default_rate)}/pc` : null,
@@ -98,6 +115,22 @@ export default function StockScreen() {
                     router.push({ pathname: '/products/[id]', params: { id: item.id } })
                   }
                 />
+                {byColour.length > 0 ? (
+                  <View style={styles.colours}>
+                    {byColour.map((row) => (
+                      <View key={row.colour} style={styles.colourRow}>
+                        <Text variant="caption" tone="muted" style={styles.colourName}>
+                          {row.colour}
+                        </Text>
+                        <Text variant="caption" tone={row.qty_left <= 0 ? 'danger' : 'muted'}>
+                          {row.qty_left < 0
+                            ? `−${pieces(Math.abs(row.qty_left))}`
+                            : pieces(row.qty_left)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
               </View>
             );
           })}
@@ -106,3 +139,24 @@ export default function StockScreen() {
     </ScrollScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  colours: {
+    gap: spacing.xs,
+    paddingLeft: spacing.xl + spacing.lg,
+    paddingRight: spacing.lg,
+    paddingBottom: spacing.md,
+    marginTop: -spacing.xs,
+  },
+  colourRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.border,
+    paddingLeft: spacing.md,
+    paddingVertical: 2,
+  },
+  colourName: { flex: 1 },
+});

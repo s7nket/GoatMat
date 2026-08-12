@@ -44,7 +44,6 @@ export default function ProductFormScreen() {
   const [size, setSize] = useState('');
   const [gsm, setGsm] = useState('');
   const [spec, setSpec] = useState('');
-  const [colour, setColour] = useState('');
   const [rate, setRate] = useState('');
   const [lowStock, setLowStock] = useState('0');
   const [notes, setNotes] = useState('');
@@ -59,7 +58,6 @@ export default function ProductFormScreen() {
     setSize(product.size ?? '');
     setGsm(product.gsm ? String(product.gsm) : '');
     setSpec(product.spec ?? '');
-    setColour(product.colour ?? '');
     setRate(product.default_rate ? String(product.default_rate) : '');
     setLowStock(String(product.low_stock_at ?? 0));
     setNotes(product.notes ?? '');
@@ -79,7 +77,6 @@ export default function ProductFormScreen() {
         size: size.trim() || null,
         gsm: toNumberOrNull(gsm),
         spec: spec.trim() || null,
-        colour: colour.trim() || null,
         default_rate: toNumberOrNull(rate),
         low_stock_at: toNumberOrNull(lowStock) ?? 0,
         notes: notes.trim() || null,
@@ -172,15 +169,6 @@ export default function ProductFormScreen() {
                   keyboardType="number-pad"
                   value={gsm}
                   onChangeText={setGsm}
-                  editable={!busy}
-                />
-                <Input
-                  label="Colour"
-                  placeholder="Green"
-                  hint="Shown wherever this product is listed."
-                  value={colour}
-                  onChangeText={setColour}
-                  autoCapitalize="words"
                   editable={!busy}
                 />
                 <Input

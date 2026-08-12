@@ -65,7 +65,7 @@ export default function ProductsScreen() {
                   icon="package"
                   title={product.name}
                   subtitle={
-                    [product.colour, product.size, product.gsm ? `${product.gsm} GSM` : null]
+                    [product.size, product.gsm ? `${product.gsm} GSM` : null]
                       .filter(Boolean)
                       .join(' · ') || 'No details set'
                   }

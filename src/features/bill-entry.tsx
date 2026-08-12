@@ -9,6 +9,7 @@ import {
   Badge,
   Button,
   Card,
+  ColourSheet,
   FormHeader,
   Input,
   PickerSheet,
@@ -23,14 +24,25 @@ import {
 import type { PaymentMode } from '@/lib/database.types';
 import { money, pieces, prettyDate, toISODate } from '@/lib/format';
 import { useCreateBill } from '@/lib/mutations';
-import { useParties, usePartyBalances, useProducts, useStock } from '@/lib/queries';
+import {
+  useColourStock,
+  useColoursUsed,
+  useParties,
+  usePartyBalances,
+  useProducts,
+  useStock,
+} from '@/lib/queries';
 import { colors, radius, spacing } from '@/theme/tokens';
 
 type Line = {
-  /** Local row identity. Two lines can hold the same product at different rates. */
+  /**
+   * Local row identity. Two lines can hold the same product in different
+   * colours, or the same colour at different rates.
+   */
   key: string;
   productId: string;
   name: string;
+  colour: string | null;
   qty: string;
   rate: string;
 };
@@ -67,6 +79,8 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
   const { data: balances = [] } = usePartyBalances(partyKind);
   const { data: products = [] } = useProducts();
   const { data: stock = [] } = useStock();
+  const { data: colourStock = [] } = useColourStock();
+  const coloursUsed = useColoursUsed();
   const createBill = useCreateBill(kind);
 
   const [partyId, setPartyId] = useState<string | null>(null);
@@ -82,6 +96,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
   const [partyOpen, setPartyOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
+  const [colourFor, setColourFor] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ party?: string; items?: string }>({});
   const submitting = useRef(false);
 
@@ -89,6 +104,16 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     () => new Map(stock.map((row) => [row.id, row.qty_left])),
     [stock],
   );
+
+  // Keyed the same way colour_stock_view keys its rows.
+  const colourStockByKey = useMemo(
+    () => new Map(colourStock.map((row) => [row.id, row.qty_left])),
+    [colourStock],
+  );
+
+  function colourLeft(productId: string, colour: string | null): number | undefined {
+    return colourStockByKey.get(`${productId}:${colour ?? ''}`);
+  }
 
   const total = useMemo(
     () => lines.reduce((sum, line) => sum + toNumber(line.qty) * toNumber(line.rate), 0),
@@ -131,7 +156,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     return {
       id: product.id,
       label: product.name,
-      sublabel: [product.colour, product.size, product.gsm ? `${product.gsm} GSM` : null]
+      sublabel: [product.size, product.gsm ? `${product.gsm} GSM` : null]
         .filter(Boolean)
         .join(' · '),
       meta: left === undefined ? undefined : pieces(left),
@@ -146,6 +171,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         key: `${option.id}-${Date.now()}`,
         productId: option.id,
         name: option.label,
+        colour: null,
         qty: '1',
         // Purchases have no remembered buying rate -- that is the supplier's call.
         rate: isSale && product?.default_rate ? String(product.default_rate) : '',
@@ -196,6 +222,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         reference: !usingAdvance && referenceLabel ? reference.trim() || null : null,
         items: usable.map((line) => ({
           product_id: line.productId,
+          colour: line.colour,
           qty: Math.round(toNumber(line.qty)),
           rate: toNumber(line.rate),
         })),
@@ -265,7 +292,12 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
             <View style={styles.lines}>
               {lines.map((line) => {
                 const qty = toNumber(line.qty);
-                const left = stockById.get(line.productId) ?? 0;
+                // Against the colour when one is chosen, against the product
+                // otherwise -- selling red is limited by red, not by the total.
+                const left =
+                  line.colour === null
+                    ? (stockById.get(line.productId) ?? 0)
+                    : (colourLeft(line.productId, line.colour) ?? 0);
                 const short = isSale && qty > left;
 
                 return (
@@ -277,7 +309,7 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
                         </Text>
                         {isSale ? (
                           <Text variant="caption" tone="muted">
-                            {pieces(left)} in stock
+                            {pieces(left)} {line.colour ? `${line.colour} ` : ''}in stock
                           </Text>
                         ) : null}
                       </View>
@@ -289,6 +321,14 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
                         <Feather name="trash-2" size={18} color={colors.danger} />
                       </Pressable>
                     </View>
+
+                    <SelectField
+                      label="Colour"
+                      icon="droplet"
+                      value={line.colour}
+                      placeholder="No colour"
+                      onPress={() => setColourFor(line.key)}
+                    />
 
                     <View style={styles.lineInputs}>
                       <Input
@@ -470,6 +510,23 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
         }}
         onSelect={addLine}
         onClose={() => setProductOpen(false)}
+      />
+
+      <ColourSheet
+        visible={colourFor !== null}
+        colours={coloursUsed}
+        // On a sale, how many of each colour are left decides which to pick.
+        stockFor={
+          isSale
+            ? (colour) => colourLeft(lines.find((l) => l.key === colourFor)?.productId ?? '', colour)
+            : undefined
+        }
+        selected={lines.find((line) => line.key === colourFor)?.colour ?? null}
+        onSelect={(colour) => {
+          if (colourFor) updateLine(colourFor, { colour });
+          setColourFor(null);
+        }}
+        onClose={() => setColourFor(null)}
       />
 
       {showDate ? (

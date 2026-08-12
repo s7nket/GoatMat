@@ -32,8 +32,6 @@ export type Product = Audit & {
   gsm: number | null;
   /** One line printed under the item on the bill. */
   spec: string | null;
-  /** Told apart at a glance wherever products are listed. */
-  colour: string | null;
   hsn: string | null;
   default_rate: number | null;
   low_stock_at: number;
@@ -71,6 +69,7 @@ export type PurchaseItem = {
   id: string;
   purchase_id: string;
   product_id: string;
+  colour: string | null;
   qty: number;
   rate: number;
   amount: number;
@@ -95,6 +94,7 @@ export type SaleItem = {
   id: string;
   sale_id: string;
   product_id: string;
+  colour: string | null;
   qty: number;
   rate: number;
   amount: number;
@@ -146,6 +146,8 @@ export type Profile = {
 /** One line on a bill, as sent to create_sale / create_purchase. */
 export type BillItemInput = {
   product_id: string;
+  /** Null when the product has no colour variants. */
+  colour: string | null;
   qty: number;
   rate: number;
 };
@@ -158,8 +160,28 @@ export type StockRow = {
   gsm: number | null;
   default_rate: number | null;
   low_stock_at: number;
-  colour: string | null;
   /** Archived products appear here only while they still hold stock. */
+  archived: boolean;
+  total_bought: number;
+  total_sold: number;
+  qty_left: number;
+};
+
+/**
+ * The same product once per colour. `stock_view` answers "how many of this
+ * product"; this answers "how many red", which is a different question and
+ * the one the Stock screen and the colour picker ask.
+ */
+export type ColourStockRow = {
+  /** `productId:colour` -- a product id alone no longer identifies a row. */
+  id: string;
+  product_id: string;
+  colour: string | null;
+  name: string;
+  size: string | null;
+  gsm: number | null;
+  default_rate: number | null;
+  low_stock_at: number;
   archived: boolean;
   total_bought: number;
   total_sold: number;
@@ -214,6 +236,8 @@ export type Database = {
     };
     Views: {
       stock_view: { Row: StockRow; Relationships: [] };
+      colour_stock_view: { Row: ColourStockRow; Relationships: [] };
+      colours_used: { Row: { colour: string }; Relationships: [] };
       party_balance_view: { Row: PartyBalanceRow; Relationships: [] };
     };
     Functions: {
@@ -253,7 +277,6 @@ export type Database = {
           p_size: string | null;
           p_gsm: number | null;
           p_spec: string | null;
-          p_colour: string | null;
           p_default_rate: number | null;
           p_low_stock_at: number;
           p_notes: string | null;

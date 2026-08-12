@@ -102,6 +102,7 @@ export function useCreateBill(kind: 'sale' | 'purchase') {
           reference: input.reference,
           items: input.items.map((item) => ({
             product_id: item.product_id,
+            colour: item.colour,
             qty: item.qty,
             rate: item.rate,
           })),
@@ -188,7 +189,6 @@ export type ProductInput = {
   size: string | null;
   gsm: number | null;
   spec: string | null;
-  colour: string | null;
   default_rate: number | null;
   low_stock_at: number;
   notes: string | null;
