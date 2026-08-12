@@ -66,6 +66,8 @@ export type OutboxJob =
         size: string | null;
         gsm: number | null;
         spec: string | null;
+        width_ft: number | null;
+        length_ft: number | null;
         default_rate: number | null;
         low_stock_at: number;
         notes: string | null;
@@ -256,6 +258,8 @@ async function send(job: OutboxJob): Promise<void> {
       p_size: job.payload.size,
       p_gsm: job.payload.gsm,
       p_spec: job.payload.spec,
+      p_width_ft: job.payload.width_ft,
+      p_length_ft: job.payload.length_ft,
       p_default_rate: job.payload.default_rate,
       p_low_stock_at: job.payload.low_stock_at,
       p_notes: job.payload.notes,

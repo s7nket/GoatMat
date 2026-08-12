@@ -33,6 +33,9 @@ export type Product = Audit & {
   /** One line printed under the item on the bill. */
   spec: string | null;
   hsn: string | null;
+  /** One mat's own size in feet. Null until someone fills it in. */
+  width_ft: number | null;
+  length_ft: number | null;
   default_rate: number | null;
   low_stock_at: number;
   notes: string | null;
@@ -279,6 +282,8 @@ export type Database = {
           p_spec: string | null;
           p_default_rate: number | null;
           p_low_stock_at: number;
+          p_width_ft?: number | null;
+          p_length_ft?: number | null;
           p_notes: string | null;
         };
         Returns: string;

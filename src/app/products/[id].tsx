@@ -44,6 +44,8 @@ export default function ProductFormScreen() {
   const [size, setSize] = useState('');
   const [gsm, setGsm] = useState('');
   const [spec, setSpec] = useState('');
+  const [widthFt, setWidthFt] = useState('');
+  const [lengthFt, setLengthFt] = useState('');
   const [rate, setRate] = useState('');
   const [lowStock, setLowStock] = useState('0');
   const [notes, setNotes] = useState('');
@@ -58,6 +60,8 @@ export default function ProductFormScreen() {
     setSize(product.size ?? '');
     setGsm(product.gsm ? String(product.gsm) : '');
     setSpec(product.spec ?? '');
+    setWidthFt(product.width_ft ? String(product.width_ft) : '');
+    setLengthFt(product.length_ft ? String(product.length_ft) : '');
     setRate(product.default_rate ? String(product.default_rate) : '');
     setLowStock(String(product.low_stock_at ?? 0));
     setNotes(product.notes ?? '');
@@ -77,6 +81,8 @@ export default function ProductFormScreen() {
         size: size.trim() || null,
         gsm: toNumberOrNull(gsm),
         spec: spec.trim() || null,
+        width_ft: toNumberOrNull(widthFt),
+        length_ft: toNumberOrNull(lengthFt),
         default_rate: toNumberOrNull(rate),
         low_stock_at: toNumberOrNull(lowStock) ?? 0,
         notes: notes.trim() || null,
@@ -171,6 +177,30 @@ export default function ProductFormScreen() {
                   onChangeText={setGsm}
                   editable={!busy}
                 />
+                <View style={styles.row}>
+                  <Input
+                    label="Width (ft)"
+                    placeholder="2"
+                    keyboardType="decimal-pad"
+                    value={widthFt}
+                    onChangeText={setWidthFt}
+                    containerStyle={styles.flex}
+                    editable={!busy}
+                  />
+                  <Input
+                    label="Length (ft)"
+                    placeholder="2"
+                    keyboardType="decimal-pad"
+                    value={lengthFt}
+                    onChangeText={setLengthFt}
+                    containerStyle={styles.flex}
+                    editable={!busy}
+                  />
+                </View>
+                <Text variant="caption" tone="muted">
+                  One mat&apos;s own size. Fill both and the Area tab can work out how many mats a
+                  floor needs.
+                </Text>
                 <Input
                   label="Specification"
                   placeholder="2x2 ft · 70 mm · 2.9 kg · 500 kg load"
@@ -252,6 +282,7 @@ export default function ProductFormScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  row: { flexDirection: 'row', gap: spacing.md },
   content: { paddingTop: spacing.lg },
   group: { gap: spacing.lg },
   danger: { gap: spacing.md, paddingHorizontal: spacing.xs },

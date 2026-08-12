@@ -82,6 +82,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="area"
+        options={{
+          title: 'Area',
+          tabBarIcon: ({ color, size }) => <Feather name="grid" size={size - 2} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="stock"
         options={{
           title: 'Stock',
