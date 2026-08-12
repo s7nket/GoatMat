@@ -7,6 +7,14 @@
 -- red". Colour is chosen per line, and stock has to split the same way or
 -- there is no answer to "have I got red left".
 
+-- The half of 012 that was right. Carried here so this file stands alone:
+-- 012 both added the spec column and put colour on the product, and running it
+-- to get the first would reinstate the second.
+alter table products add column if not exists spec text;
+
+comment on column products.spec is
+  'One line printed under the product on a bill -- size, thickness, load rating.';
+
 alter table products add column if not exists colour text;
 update products set colour = null where colour is not null;
 alter table products drop column if exists colour;

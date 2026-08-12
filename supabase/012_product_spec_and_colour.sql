@@ -1,6 +1,9 @@
 -- Migration 012 -- what the mat actually is, and what colour.
 --
--- Run once in Supabase Studio > SQL Editor. Safe to re-run.
+-- SUPERSEDED BY 013. Do not run this file. It puts colour on the product,
+-- which 013 undoes, and running it afterwards would reinstate both the column
+-- and a create_product that takes p_colour. Everything here that survived --
+-- the spec column -- is repeated in 013, so 013 alone is enough.
 --
 -- The warranty and terms added in 011 belong to the business. The
 -- specification belongs to the product: a 2x2 ft 70 mm mat rated to 500 kg is

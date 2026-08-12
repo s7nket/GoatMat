@@ -310,6 +310,22 @@ function isPermanent(error: unknown): boolean {
   return code.length === 5 || code.startsWith('PGRST');
 }
 
+/**
+ * What to show on the failed card.
+ *
+ * Supabase rejects with a plain object, not an Error, so `instanceof` threw the
+ * only useful part away and every failure read "Could not send." -- which is
+ * exactly what the card already says. `hint` and `details` carry the part that
+ * names the actual column or function.
+ */
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  const e = error as { message?: string; details?: string; hint?: string; code?: string } | null;
+  const text = [e?.message, e?.details, e?.hint].filter(Boolean).join(' — ');
+  if (!text) return 'Could not send.';
+  return e?.code ? `${text} (${e.code})` : text;
+}
+
 export type FlushResult = { sent: number; failed: number; remaining: number };
 
 let flushing = false;
@@ -351,7 +367,7 @@ export async function flush(userId: string | null): Promise<FlushResult> {
         await removeJob(job.id, userId);
         sent += 1;
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not send.';
+        const message = messageOf(error);
         const attempts = job.attempts + 1;
 
         // A Postgres or PostgREST error means the server received this and
