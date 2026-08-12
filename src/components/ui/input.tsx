@@ -89,6 +89,7 @@ export function SelectField({
   placeholder = 'Select',
   icon,
   error,
+  caption,
   onPress,
   containerStyle,
 }: {
@@ -97,6 +98,8 @@ export function SelectField({
   placeholder?: string;
   icon?: React.ComponentProps<typeof Feather>['name'];
   error?: string;
+  /** Shown under the field when there is no error. */
+  caption?: string;
   onPress: () => void;
   containerStyle?: ViewStyle;
 }) {
@@ -131,6 +134,10 @@ export function SelectField({
       {error ? (
         <Text variant="caption" tone="danger" style={styles.helper}>
           {error}
+        </Text>
+      ) : caption ? (
+        <Text variant="caption" tone="muted" style={styles.helper}>
+          {caption}
         </Text>
       ) : null}
     </View>

@@ -120,6 +120,27 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     [lines],
   );
 
+  // One card per product, its colours inside. The lines are still what gets
+  // saved -- this only decides what the screen looks like.
+  const groups = useMemo(() => {
+    const order: string[] = [];
+    const byProduct = new Map<string, { productId: string; name: string; lines: Line[] }>();
+    for (const line of lines) {
+      const group = byProduct.get(line.productId);
+      if (group) {
+        group.lines.push(line);
+      } else {
+        order.push(line.productId);
+        byProduct.set(line.productId, {
+          productId: line.productId,
+          name: line.name,
+          lines: [line],
+        });
+      }
+    }
+    return order.map((id) => byProduct.get(id)!);
+  }, [lines]);
+
   // Money of theirs already sitting with you. A customer who paid ahead shows
   // as a negative balance; an overpaid supplier as a positive one.
   const partyBalance = Number(balances.find((row) => row.id === partyId)?.balance ?? 0);
@@ -165,6 +186,14 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
 
   function addLine(option: PickerOption) {
     const product = products.find((p) => p.id === option.id);
+    // Picking a product already on the bill means another colour of it, not a
+    // second card saying the same name.
+    if (lines.some((line) => line.productId === option.id)) {
+      addColour(option.id, option.label);
+      setProductOpen(false);
+      return;
+    }
+
     setLines((current) => [
       ...current,
       {
@@ -179,6 +208,35 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
     ]);
     setProductOpen(false);
     setErrors((e) => ({ ...e, items: undefined }));
+  }
+
+  /**
+   * Another colour of a product already on the bill. One consignment arrives
+   * part red and part green at one rate, so the rate carries over from the
+   * colour above rather than being typed again.
+   */
+  function addColour(productId: string, name: string) {
+    const key = `${productId}-${Date.now()}`;
+    setLines((current) => {
+      const last = [...current].reverse().find((line) => line.productId === productId);
+      const index = current.findLastIndex((line) => line.productId === productId);
+      const line: Line = {
+        key,
+        productId,
+        name,
+        colour: null,
+        qty: '1',
+        rate: last?.rate ?? '',
+      };
+      // Beside its own product, not at the bottom of the bill.
+      return [...current.slice(0, index + 1), line, ...current.slice(index + 1)];
+    });
+    setColourFor(key);
+    setErrors((e) => ({ ...e, items: undefined }));
+  }
+
+  function removeProduct(productId: string) {
+    setLines((current) => current.filter((line) => line.productId !== productId));
   }
 
   function updateLine(key: string, patch: Partial<Line>) {
@@ -290,68 +348,116 @@ export function BillEntry({ kind }: { kind: 'sale' | 'purchase' }) {
             </Card>
           ) : (
             <View style={styles.lines}>
-              {lines.map((line) => {
-                const qty = toNumber(line.qty);
-                // Against the colour when one is chosen, against the product
-                // otherwise -- selling red is limited by red, not by the total.
-                const left =
-                  line.colour === null
-                    ? (stockById.get(line.productId) ?? 0)
-                    : (colourLeft(line.productId, line.colour) ?? 0);
-                const short = isSale && qty > left;
+              {groups.map((group) => {
+                const productLeft = stockById.get(group.productId) ?? 0;
+                const groupTotal = group.lines.reduce(
+                  (sum, line) => sum + toNumber(line.qty) * toNumber(line.rate),
+                  0,
+                );
 
                 return (
-                  <Card key={line.key} style={styles.line}>
+                  <Card key={group.productId} style={styles.line}>
                     <View style={styles.lineHead}>
                       <View style={styles.flex}>
                         <Text variant="bodyMedium" numberOfLines={1}>
-                          {line.name}
+                          {group.name}
                         </Text>
                         {isSale ? (
                           <Text variant="caption" tone="muted">
-                            {pieces(left)} {line.colour ? `${line.colour} ` : ''}in stock
+                            {pieces(productLeft)} in stock
                           </Text>
                         ) : null}
                       </View>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={`Remove ${line.name}`}
+                        accessibilityLabel={`Remove ${group.name}`}
                         hitSlop={10}
-                        onPress={() => removeLine(line.key)}>
+                        onPress={() => removeProduct(group.productId)}>
                         <Feather name="trash-2" size={18} color={colors.danger} />
                       </Pressable>
                     </View>
 
-                    <SelectField
-                      label="Colour"
-                      icon="droplet"
-                      value={line.colour}
-                      placeholder="No colour"
-                      onPress={() => setColourFor(line.key)}
-                    />
+                    {group.lines.map((line, index) => {
+                      const qty = toNumber(line.qty);
+                      // Against the colour when one is chosen, against the
+                      // product otherwise -- red is limited by red, not by the
+                      // total.
+                      const left =
+                        line.colour === null
+                          ? productLeft
+                          : (colourLeft(line.productId, line.colour) ?? 0);
+                      const short = isSale && qty > left;
 
-                    <View style={styles.lineInputs}>
-                      <Input
-                        label="Pieces"
-                        keyboardType="number-pad"
-                        value={line.qty}
-                        onChangeText={(text) => updateLine(line.key, { qty: text })}
-                        containerStyle={styles.flex}
-                      />
-                      <Input
-                        label="Rate each"
-                        money
-                        value={line.rate}
-                        onChangeText={(text) => updateLine(line.key, { rate: text })}
-                        containerStyle={styles.flex}
-                      />
-                    </View>
+                      return (
+                        <View key={line.key} style={styles.colourBlock}>
+                          {index > 0 ? <View style={styles.colourRule} /> : null}
+
+                          <View style={styles.colourHead}>
+                            <SelectField
+                              label="Colour"
+                              icon="droplet"
+                              value={line.colour}
+                              placeholder="No colour"
+                              containerStyle={styles.flex}
+                              caption={
+                                isSale && line.colour ? `${pieces(left)} in stock` : undefined
+                              }
+                              onPress={() => setColourFor(line.key)}
+                            />
+                            {/* The last colour of a product is removed by
+                                removing the product, so no second control that
+                                empties the card and leaves it standing. */}
+                            {group.lines.length > 1 ? (
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Remove ${line.colour ?? 'this colour'}`}
+                                hitSlop={10}
+                                style={styles.colourRemove}
+                                onPress={() => removeLine(line.key)}>
+                                <Feather name="x" size={18} color={colors.textMuted} />
+                              </Pressable>
+                            ) : null}
+                          </View>
+
+                          <View style={styles.lineInputs}>
+                            <Input
+                              label="Pieces"
+                              keyboardType="number-pad"
+                              value={line.qty}
+                              onChangeText={(text) => updateLine(line.key, { qty: text })}
+                              containerStyle={styles.flex}
+                            />
+                            <Input
+                              label="Rate each"
+                              money
+                              value={line.rate}
+                              onChangeText={(text) => updateLine(line.key, { rate: text })}
+                              containerStyle={styles.flex}
+                            />
+                          </View>
+
+                          {/* Selling more than you hold is allowed -- the
+                              purchase may simply not be entered yet -- but it
+                              is flagged. */}
+                          {short ? (
+                            <Badge
+                              label={`More than ${line.colour ? line.colour.toLowerCase() : 'stock'}`}
+                              tone="warning"
+                            />
+                          ) : null}
+                        </View>
+                      );
+                    })}
 
                     <View style={styles.lineFoot}>
-                      {/* Selling more than you hold is allowed -- the purchase
-                          may simply not be entered yet -- but it is flagged. */}
-                      {short ? <Badge label="More than stock" tone="warning" /> : <View />}
-                      <Text variant="amount">{money(qty * toNumber(line.rate))}</Text>
+                      <Button
+                        label="Add colour"
+                        size="sm"
+                        variant="ghost"
+                        icon="plus"
+                        onPress={() => addColour(group.productId, group.name)}
+                      />
+                      <Text variant="amount">{money(groupTotal)}</Text>
                     </View>
                   </Card>
                 );
@@ -582,6 +688,14 @@ const styles = StyleSheet.create({
   line: { gap: spacing.md },
   lineHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   lineInputs: { flexDirection: 'row', gap: spacing.md },
+  colourBlock: { gap: spacing.md },
+  colourRule: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginBottom: spacing.xs,
+  },
+  colourHead: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm },
+  colourRemove: { paddingBottom: spacing.md },
   lineFoot: {
     flexDirection: 'row',
     alignItems: 'center',
